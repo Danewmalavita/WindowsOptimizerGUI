@@ -68,6 +68,7 @@ Construida en XAML, incluye:
 El script valida automáticamente los permisos:
 
 > “Este programa requiere permisos de administrador. Por favor, ejecuta PowerShell como administrador y vuelve a intentarlo.”
+> “Es posible que haya que cambiar la politica de ejecución de powershell. Ejecutar desde powershell set-executionpolicy -executionpolicy bypass -scope localmachine”
 
 ---
 
