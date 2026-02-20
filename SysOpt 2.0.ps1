@@ -1,4 +1,4 @@
-﻿#﻿Requires -RunAsAdministrator
+#﻿Requires -RunAsAdministrator
 <#
 .SYNOPSIS
     Optimizador de Sistema Windows con Interfaz Gráfica
@@ -6,8 +6,20 @@
     Script completo de optimización con GUI, limpieza avanzada, verificación de sistema y registro.
 .NOTES
     Requiere permisos de administrador
-    Versión: 1.0
-    Cambios v1.0.6:
+    Versión: 2.0
+    Cambios v2.0.2 (BugFix):
+      BUGS CORREGIDOS:
+        [BF1] Pestaña Rendimiento → Red: ahora muestra velocidad de subida/bajada
+              en tiempo real (delta bytes/s), detecta Ethernet vs WiFi por PhysicalMediaType
+              e InterfaceDescription, e indica el tipo con icono 📶/🔌
+        [BF2] Explorador de Disco: escaneo ahora es verdaderamente recursivo —
+              emite subcarpetas con indentación visual en tiempo real durante el barrido;
+              se añade propiedad Depth al objeto de cola y a ScanControl.Current
+        [BF3] Cierre del programa: Add_Closed vacía la cola ConcurrentQueue, limpia
+              LiveList/LiveItems, dispone el runspace de escaneo y el CancelTokenSource
+              de optimización → evita errores de estado cacheado al relanzar
+        [BF3b] ScanControl: añadida propiedad Current (volatile string) que faltaba
+               en la clase C# — corrige NullRef al leer [ScanControl]::Current
       BUGS CORREGIDOS:
         [B1]  GC.Collect reemplazado por EmptyWorkingSet real via Win32 API (RAM real)
         [B2]  CleanRegistry ahora exige BackupRegistry o muestra advertencia bloqueante
@@ -62,13 +74,15 @@ public class MemoryHelper {
 # Clase C# compartida entre runspaces para señal de parada del escáner
 Add-Type @"
 public static class ScanControl {
-    private static volatile bool _stop = false;
-    private static volatile int  _done = 0;
-    private static volatile int  _total = 0;
-    public static bool Stop  { get { return _stop; }  set { _stop = value; } }
-    public static int  Done  { get { return _done; }  set { _done = value; } }
-    public static int  Total { get { return _total; } set { _total = value; } }
-    public static void Reset() { _stop = false; _done = 0; _total = 0; }
+    private static volatile bool   _stop    = false;
+    private static volatile int    _done    = 0;
+    private static volatile int    _total   = 0;
+    private static volatile string _current = "";
+    public static bool   Stop    { get { return _stop;    } set { _stop    = value; } }
+    public static int    Done    { get { return _done;    } set { _done    = value; } }
+    public static int    Total   { get { return _total;   } set { _total   = value; } }
+    public static string Current { get { return _current; } set { _current = value; } }
+    public static void Reset() { _stop = false; _done = 0; _total = 0; _current = ""; }
 }
 "@ -ErrorAction SilentlyContinue
 
@@ -971,6 +985,14 @@ $xaml = @"
                                                         Background="{Binding BarColor}" Opacity="0.15"/>
                                                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
                                                             Margin="{Binding Indent}">
+                                                    <!-- Botón colapsar/expandir (solo visible en carpetas con hijos) -->
+                                                    <Button Name="btnToggle" Content="{Binding ToggleIcon}"
+                                                            Tag="{Binding FullPath}"
+                                                            Width="18" Height="18" Padding="0" Margin="0,0,3,0"
+                                                            Background="Transparent" BorderThickness="0"
+                                                            Foreground="#7BA8E0" FontSize="9" FontWeight="Bold"
+                                                            Cursor="Hand"
+                                                            Visibility="{Binding ToggleVisibility}"/>
                                                     <TextBlock Text="{Binding Icon}" FontSize="12" Margin="0,0,5,0"
                                                                VerticalAlignment="Center"/>
                                                     <TextBlock Text="{Binding DisplayName}" FontFamily="Segoe UI" FontSize="11"
@@ -1570,44 +1592,99 @@ function Update-PerformanceTab {
         })
     }
 
-    # ── Tarjetas de Red ────────────────────────────────────────
+    # ── Tarjetas de Red — sin Sleep, usa contadores de rendimiento del sistema ──
     try {
-        $adapters = Get-NetAdapter -ErrorAction Stop | Where-Object { $_.Status -eq "Up" -or $_.Status -eq "Disconnected" }
+        # Obtener todos los adaptadores (Up + Disconnected)
+        $adapters = Get-NetAdapter -ErrorAction Stop
+
         $netItems = [System.Collections.Generic.List[object]]::new()
+
+        # Leer contadores de rendimiento de red (bytes/s ya calculados por Windows)
+        $rxCounters = @{}; $txCounters = @{}
+        try {
+            $perfSamples = Get-Counter '\Network Interface(*)\Bytes Received/sec',
+                                       '\Network Interface(*)\Bytes Sent/sec' `
+                                       -SampleInterval 1 -MaxSamples 1 -ErrorAction SilentlyContinue
+            if ($perfSamples) {
+                foreach ($s in $perfSamples.CounterSamples) {
+                    # Normalizar nombre de instancia: minúsculas, sin paréntesis de índice (#N)
+                    $inst = ($s.InstanceName -replace '\s*#\d+$','').ToLower().Trim()
+                    if ($s.Path -match 'Bytes Received') { $rxCounters[$inst] = $s.CookedValue }
+                    else                                 { $txCounters[$inst] = $s.CookedValue }
+                }
+            }
+        } catch {}
+
+        # Helper para formatear bytes/s
+        function Format-Rate([double]$bps) {
+            if ($bps -ge 1MB) { return "{0:N1} MB/s" -f ($bps / 1MB) }
+            if ($bps -ge 1KB) { return "{0:N0} KB/s" -f ($bps / 1KB) }
+            if ($bps -gt 0)   { return "{0:N0} B/s"  -f $bps }
+            return "0 B/s"
+        }
+
         foreach ($a in $adapters) {
+            # IP
             $ip = (Get-NetIPAddress -InterfaceIndex $a.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
                    Select-Object -First 1).IPAddress
             if (-not $ip) { $ip = "Sin IP" }
 
+            # Tipo: WiFi vs Ethernet vs Loopback vs Virtual
+            $adType = if ($a.InterfaceDescription -match 'Wi.?Fi|Wireless|WLAN|802\.11' -or
+                          $a.PhysicalMediaType    -match '802\.11|Wireless') {
+                "📶 WiFi"
+            } elseif ($a.InterfaceDescription -match 'Loopback|Pseudo') {
+                "🔁 Loopback"
+            } elseif ($a.InterfaceDescription -match 'Virtual|Hyper-V|VPN|TAP|TUN|VMware|VirtualBox') {
+                "🔷 Virtual"
+            } else {
+                "🔌 Ethernet"
+            }
+
+            # Velocidad de enlace nominal
             $speedStr = if ($a.LinkSpeed -gt 0) {
                 $bps = $a.LinkSpeed
-                if ($bps -ge 1000000000) { "$([math]::Round($bps/1000000000,0)) Gbps" }
-                elseif ($bps -ge 1000000) { "$([math]::Round($bps/1000000,0)) Mbps" }
-                else { "$bps bps" }
+                if ($bps -ge 1GB) { "$([math]::Round($bps/1GB,0)) Gbps" }
+                else              { "$([math]::Round($bps/1MB,0)) Mbps" }
             } else { "—" }
 
-            # Bytes enviados/recibidos (desde stats)
-            $stats = $null
-            try { $stats = Get-NetAdapterStatistics -Name $a.Name -ErrorAction SilentlyContinue } catch {}
-            $ioStr = if ($stats) {
-                "↓ $(Format-Bytes $stats.ReceivedBytes)  ↑ $(Format-Bytes $stats.SentBytes)"
-            } else { "" }
+            # Buscar contador por descripción normalizada
+            $instKey = ($a.InterfaceDescription -replace '\s*#\d+$','').ToLower().Trim()
+            # Fallback: buscar clave que contenga el nombre del adaptador
+            if (-not $rxCounters.ContainsKey($instKey)) {
+                $instKey = $rxCounters.Keys | Where-Object { $_ -like "*$($a.Name.ToLower())*" } | Select-Object -First 1
+            }
 
-            $statusColor = if ($a.Status -eq "Up") { "#4AE896" } else { "#FF6B84" }
+            $rxBps = if ($instKey -and $rxCounters.ContainsKey($instKey)) { $rxCounters[$instKey] } else { 0.0 }
+            $txBps = if ($instKey -and $txCounters.ContainsKey($instKey)) { $txCounters[$instKey] } else { 0.0 }
+
+            # Bytes totales acumulados
+            $ioStr = ""
+            try {
+                $stats = Get-NetAdapterStatistics -Name $a.Name -ErrorAction SilentlyContinue
+                if ($stats) {
+                    $ioStr = "Total ↓ $(Format-Bytes $stats.ReceivedBytes)  ↑ $(Format-Bytes $stats.SentBytes)"
+                }
+            } catch {}
+
+            $statusColor = if ($a.Status -eq "Up") { "#4AE896" } else { "#9BA4C0" }
 
             $netItems.Add([PSCustomObject]@{
-                Name        = $a.Name
-                IP          = "IP: $ip"
-                MAC         = "MAC: $($a.MacAddress)"
+                Name        = "$adType  $($a.Name)"
+                IP          = "IP: $ip  |  MAC: $($a.MacAddress)"
+                MAC         = $a.InterfaceDescription
                 Speed       = $speedStr
-                Status      = $a.Status
+                Status      = "$($a.Status)   ↓ $(Format-Rate $rxBps)   ↑ $(Format-Rate $txBps)"
                 StatusColor = $statusColor
                 BytesIO     = $ioStr
             })
         }
         $icNetAdapters.ItemsSource = $netItems
     } catch {
-        $icNetAdapters.ItemsSource = @()
+        # Mostrar el error real para diagnóstico
+        $icNetAdapters.ItemsSource = @([PSCustomObject]@{
+            Name="Error al leer adaptadores"; IP="$($_.Exception.Message)"; MAC=""; Speed=""; Status="Error"; StatusColor="#FF6B84"; BytesIO=""
+        })
     }
 
     $txtPerfStatus.Text = "Actualizado: $(Get-Date -Format 'HH:mm:ss')"
@@ -1633,8 +1710,36 @@ $txtDiskDetailPct   = $window.FindName("txtDiskDetailPct")
 $icTopFiles         = $window.FindName("icTopFiles")
 
 $script:DiskScanRunspace = $null
-# DiskScanStop now handled by [ScanControl]::Stop
 $script:DiskScanResults  = $null
+# Rutas colapsadas por el usuario (toggle ▶/▼)
+$script:CollapsedPaths   = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+# Todos los items escaneados (sin filtrar) — base para rebuilds de vista
+$script:AllScannedItems  = [System.Collections.Generic.List[object]]::new()
+# Índice posición en LiveList para actualizaciones O(1)
+$script:LiveIndexMap     = [System.Collections.Generic.Dictionary[string,int]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Reconstruye la lista visible aplicando el filtro de colapso
+# ─────────────────────────────────────────────────────────────────────────────
+function Refresh-DiskView {
+    if ($null -eq $script:LiveList) { return }
+    $script:LiveList.Clear()
+    foreach ($item in $script:AllScannedItems) {
+        # Comprobar si algún ancestro está colapsado
+        $hidden = $false
+        if ($item.Depth -gt 0 -and $null -ne $item.ParentPath) {
+            # Recorrer jerarquía de padres
+            $checkPath = $item.ParentPath
+            while ($checkPath) {
+                if ($script:CollapsedPaths.Contains($checkPath)) { $hidden = $true; break }
+                # Subir un nivel
+                $up = [System.IO.Path]::GetDirectoryName($checkPath)
+                $checkPath = if ($up -and $up -ne $checkPath) { $up } else { $null }
+            }
+        }
+        if (-not $hidden) { $script:LiveList.Add($item) }
+    }
+}
 
 function Get-SizeColor {
     param([long]$Bytes)
@@ -1665,6 +1770,10 @@ function Start-DiskScan {
     Start-Sleep -Milliseconds 150
     [ScanControl]::Reset()
 
+    $script:CollapsedPaths.Clear()
+    $script:AllScannedItems.Clear()
+    if ($null -ne $script:LiveIndexMap) { $script:LiveIndexMap.Clear() }
+
     $btnDiskScan.IsEnabled  = $false
     $btnDiskStop.IsEnabled  = $true
     $txtDiskScanStatus.Text = "Iniciando escaneo de $RootPath …"
@@ -1679,71 +1788,92 @@ function Start-DiskScan {
     $script:LiveList  = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     $lbDiskTree.ItemsSource = $script:LiveList
 
-    # ── Hilo de fondo ────────────────────────────────────────────────────────
+    # ── Hilo de fondo — recursivo, emite carpetas Y archivos individuales ───────
     $bgScript = {
         param([string]$Root, [System.Collections.Concurrent.ConcurrentQueue[object]]$Q)
 
-        # Mide un directorio recursivamente y devuelve tamaño + conteos
-        function Measure-Dir([string]$Path) {
-            $size = 0L; $files = 0; $dirs = 0
+        # Escaneo DFS iterativo con pila explícita (evita stack overflow en árboles profundos)
+        # Emite:  placeholder (Done=$false) → resultado carpeta (Done=$true, IsDir=$true)
+        #         resultado archivo   (Done=$true, IsDir=$false) — emitido al descubrir
+        function Scan-DirRecursive([string]$Path, [int]$Depth) {
+            if ([ScanControl]::Stop) { return 0L }
+
+            $dName = [System.IO.Path]::GetFileName($Path)
+            if (-not $dName) { $dName = $Path }
+
+            # Placeholder inmediato de carpeta
+            $Q.Enqueue([PSCustomObject]@{
+                Key=$Path; Name=$dName; Size=-1L; IsDir=$true
+                Files=0; Dirs=0; Done=$false; Depth=$Depth
+            })
+
+            $totalSize  = 0L
+            $totalFiles = 0
+            $totalDirs  = 0
+
+            # Archivos directamente en este nivel → emitir cada uno
             try {
-                $stack = [System.Collections.Generic.Stack[string]]::new()
-                $stack.Push($Path)
-                while ($stack.Count -gt 0) {
+                foreach ($f in [System.IO.Directory]::GetFiles($Path)) {
                     if ([ScanControl]::Stop) { break }
-                    $cur = $stack.Pop()
-                    try {
-                        foreach ($f in [System.IO.Directory]::GetFiles($cur)) {
-                            try { $size += ([System.IO.FileInfo]$f).Length; $files++ } catch {}
-                        }
-                        foreach ($d in [System.IO.Directory]::GetDirectories($cur)) {
-                            $dirs++; $stack.Push($d)
-                        }
-                    } catch {}
+                    $fName = [System.IO.Path]::GetFileName($f)
+                    $fSize = 0L
+                    try { $fSize = ([System.IO.FileInfo]$f).Length } catch {}
+                    $totalSize  += $fSize
+                    $totalFiles++
+                    # Emitir archivo individual (clave única = ruta completa)
+                    $Q.Enqueue([PSCustomObject]@{
+                        Key=$f; Name=$fName; Size=$fSize; IsDir=$false
+                        Files=1; Dirs=0; Done=$true; Depth=($Depth + 1)
+                    })
                 }
             } catch {}
-            return [PSCustomObject]@{ Size=$size; Files=$files; Dirs=$dirs }
+
+            # Subdirectorios → recursión
+            $subDirs = @()
+            try { $subDirs = [System.IO.Directory]::GetDirectories($Path) } catch {}
+            $totalDirs = $subDirs.Count
+            [ScanControl]::Total += $subDirs.Count
+
+            foreach ($sub in $subDirs) {
+                if ([ScanControl]::Stop) { break }
+                [ScanControl]::Current = [System.IO.Path]::GetFileName($sub)
+                $subSize = Scan-DirRecursive $sub ($Depth + 1)
+                $totalSize += $subSize
+                [ScanControl]::Done++
+            }
+
+            # Resultado final de esta carpeta
+            $Q.Enqueue([PSCustomObject]@{
+                Key=$Path; Name=$dName; Size=$totalSize; IsDir=$true
+                Files=$totalFiles; Dirs=$totalDirs; Done=$true; Depth=$Depth
+            })
+
+            return $totalSize
         }
 
         try {
-            # Carpetas y archivos de primer nivel
             $topDirs  = try { [System.IO.Directory]::GetDirectories($Root) } catch { @() }
-            $topFiles = try { [System.IO.Directory]::GetFiles($Root)        } catch { @() }
             [ScanControl]::Total = $topDirs.Count + 1
 
             # Archivos sueltos en la raíz
-            $rootSize = 0L; $rootCount = 0
-            foreach ($f in $topFiles) {
-                if ([ScanControl]::Stop) { break }
-                try { $rootSize += ([System.IO.FileInfo]$f).Length; $rootCount++ } catch {}
-            }
-            if ($rootCount -gt 0) {
-                $Q.Enqueue([PSCustomObject]@{
-                    Key='__rootfiles__'; Name="[Archivos en raíz]"
-                    Size=$rootSize; Files=$rootCount; Dirs=0; IsDir=$false; Done=$true
-                })
-            }
+            try {
+                foreach ($f in [System.IO.Directory]::GetFiles($Root)) {
+                    if ([ScanControl]::Stop) { break }
+                    $fName = [System.IO.Path]::GetFileName($f)
+                    $fSize = 0L
+                    try { $fSize = ([System.IO.FileInfo]$f).Length } catch {}
+                    $Q.Enqueue([PSCustomObject]@{
+                        Key=$f; Name=$fName; Size=$fSize; IsDir=$false
+                        Files=1; Dirs=0; Done=$true; Depth=0
+                    })
+                }
+            } catch {}
             [ScanControl]::Done++
 
-            # Carpetas: emitir placeholder inmediato → luego resultado real
+            # Escanear cada carpeta de primer nivel
             foreach ($d in $topDirs) {
                 if ([ScanControl]::Stop) { break }
-                $dName = [System.IO.Path]::GetFileName($d)
-                [ScanControl]::Current = $dName
-
-                # Placeholder "calculando…"
-                $Q.Enqueue([PSCustomObject]@{
-                    Key=$d; Name=$dName; Size=-1L
-                    Files=0; Dirs=0; IsDir=$true; Done=$false
-                })
-
-                $info = Measure-Dir $d
-
-                # Resultado real
-                $Q.Enqueue([PSCustomObject]@{
-                    Key=$d; Name=$dName; Size=$info.Size
-                    Files=$info.Files; Dirs=$info.Dirs; IsDir=$true; Done=$true
-                })
+                Scan-DirRecursive $d 0 | Out-Null
                 [ScanControl]::Done++
             }
         } catch {}
@@ -1757,9 +1887,13 @@ function Start-DiskScan {
     $script:DiskScanRunspace = $rs
     $async = $ps.BeginInvoke()
 
-    # ── Timer UI: drena la cola y actualiza lista cada 400 ms ─────────────────
+    # ── Timer UI: drena la cola y actualiza lista cada 300 ms ──────────────────
+    # LiveIndexMap: clave→posición en LiveList para actualizaciones O(1)
+    $script:LiveIndexMap = [System.Collections.Generic.Dictionary[string,int]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
+
     $uiTimer = New-Object System.Windows.Threading.DispatcherTimer
-    $uiTimer.Interval = [TimeSpan]::FromMilliseconds(400)
+    $uiTimer.Interval = [TimeSpan]::FromMilliseconds(300)
     $uiTimer.Add_Tick({
 
         $total = [ScanControl]::Total
@@ -1771,74 +1905,104 @@ function Start-DiskScan {
             $pbDiskScan.Value = [math]::Min(99, [math]::Round($done / $total * 100))
         }
 
-        # Ancho disponible para barras proporcionales
         $lw = if ($lbDiskTree.ActualWidth -gt 100) { $lbDiskTree.ActualWidth - 270 } else { 400 }
 
-        # Drena todos los mensajes en cola
+        # Procesar máx 400 mensajes por tick (evita bloquear UI en carpetas masivas)
         $anyUpdate = $false
+        $processed = 0
         $msg = $null
-        while ($script:ScanQueue.TryDequeue([ref]$msg)) {
-            $key = $msg.Key
+        while ($processed -lt 400 -and $script:ScanQueue.TryDequeue([ref]$msg)) {
+            $processed++
+            $key        = $msg.Key
+            $depth      = if ($msg.PSObject.Properties['Depth']) { [int]$msg.Depth } else { 0 }
+            $parentPath = try { [System.IO.Path]::GetDirectoryName($key) } catch { $null }
+            $indent     = "$([math]::Max(4, $depth * 20)),0,0,0"
 
             if (-not $msg.Done) {
-                # Placeholder: añadir a lista si no existe
+                # Placeholder de carpeta — solo si no existe ya
                 if (-not $script:LiveItems.ContainsKey($key)) {
                     $entry = [PSCustomObject]@{
-                        DisplayName="$($msg.Name)"; FullPath=$key
-                        SizeBytes=-1L; SizeStr="calculando…"; SizeColor="#8B96B8"
-                        PctStr="—"; FileCount="…"; DirCount=0; IsDir=$true
-                        Icon="📁"; Indent="4,0,0,0"; BarWidth=0.0; BarColor="#3A4468"; TotalPct=0.0
+                        DisplayName="$($msg.Name)"; FullPath=$key; ParentPath=$parentPath
+                        SizeBytes=-1L; SizeStr="…"; SizeColor="#8B96B8"
+                        PctStr="—"; FileCount="…"; DirCount=0; IsDir=$true; HasChildren=$false
+                        Icon="📁"; Indent=$indent; BarWidth=0.0; BarColor="#3A4468"; TotalPct=0.0
+                        Depth=$depth; ToggleIcon="▶"; ToggleVisibility="Collapsed"
                     }
                     $script:LiveItems[$key] = $entry
-                    $script:LiveList.Add($entry)
+                    $script:AllScannedItems.Add($entry)
+                    # Visibilidad según colapso de padres
+                    $isHidden = $false
+                    if ($depth -gt 0 -and $parentPath) {
+                        $pp = $parentPath
+                        while ($pp) {
+                            if ($script:CollapsedPaths.Contains($pp)) { $isHidden = $true; break }
+                            $pp2 = try { [System.IO.Path]::GetDirectoryName($pp) } catch { $null }
+                            $pp = if ($pp2 -and $pp2 -ne $pp) { $pp2 } else { $null }
+                        }
+                    }
+                    if (-not $isHidden) {
+                        $script:LiveIndexMap[$key] = $script:LiveList.Count
+                        $script:LiveList.Add($entry)
+                    }
                 }
             } else {
-                # Datos reales: calcular color y construir entrada final
-                $sz = $msg.Size
-                $sc = if ($sz -ge 10GB) { "#FF6B84" } elseif ($sz -ge 1GB) { "#FFB547" } elseif ($sz -ge 100MB) { "#5BA3FF" } else { "#B0BACC" }
-                $szStr = if ($sz -ge 1GB) { "{0:N1} GB" -f ($sz/1GB) } elseif ($sz -ge 1MB) { "{0:N0} MB" -f ($sz/1MB) } elseif ($sz -ge 1KB) { "{0:N0} KB" -f ($sz/1KB) } else { "$sz B" }
-                $icon = if ($msg.IsDir) { "📁" } else { "📄" }
-                $fc   = if ($msg.IsDir) { "$($msg.Files) arch.  $($msg.Dirs) carp." } else { "$($msg.Files) arch." }
+                # Datos reales (carpeta completada o archivo individual)
+                $sz      = $msg.Size
+                $sc      = if ($sz -ge 10GB) {"#FF6B84"} elseif ($sz -ge 1GB) {"#FFB547"} elseif ($sz -ge 100MB) {"#5BA3FF"} else {"#B0BACC"}
+                $szStr   = if ($sz -ge 1GB) {"{0:N1} GB" -f ($sz/1GB)} elseif ($sz -ge 1MB) {"{0:N0} MB" -f ($sz/1MB)} elseif ($sz -ge 1KB) {"{0:N0} KB" -f ($sz/1KB)} else {"$sz B"}
+                $icon    = if ($msg.IsDir) { "📁" } else { "📄" }
+                $fc      = if ($msg.IsDir) { "$($msg.Files) arch.  $($msg.Dirs) carp." } else { "archivo" }
+                $hasCh   = $msg.IsDir -and $msg.Dirs -gt 0
+                $togVis  = if ($hasCh) { "Visible" } else { "Collapsed" }
+                $togIcon = if ($script:CollapsedPaths.Contains($key)) { "▶" } else { "▼" }
+
                 $newEntry = [PSCustomObject]@{
-                    DisplayName=$msg.Name; FullPath=$key
+                    DisplayName=$msg.Name; FullPath=$key; ParentPath=$parentPath
                     SizeBytes=$sz; SizeStr=$szStr; SizeColor=$sc
-                    PctStr="—"; FileCount=$fc; DirCount=$msg.Dirs; IsDir=$msg.IsDir
-                    Icon=$icon; Indent="4,0,0,0"; BarWidth=0.0; BarColor=$sc; TotalPct=0.0
+                    PctStr="—"; FileCount=$fc; DirCount=$msg.Dirs; IsDir=$msg.IsDir; HasChildren=$hasCh
+                    Icon=$icon; Indent=$indent; BarWidth=0.0; BarColor=$sc; TotalPct=0.0
+                    Depth=$depth; ToggleIcon=$togIcon; ToggleVisibility=$togVis
                 }
+
                 if ($script:LiveItems.ContainsKey($key)) {
-                    $idx = $script:LiveList.IndexOf($script:LiveItems[$key])
+                    # Actualizar item existente (placeholder → datos reales)
+                    $oldEntry = $script:LiveItems[$key]
+                    $aidx = $script:AllScannedItems.IndexOf($oldEntry)
+                    if ($aidx -ge 0) { $script:AllScannedItems[$aidx] = $newEntry }
                     $script:LiveItems[$key] = $newEntry
-                    if ($idx -ge 0) { $script:LiveList[$idx] = $newEntry } else { $script:LiveList.Add($newEntry) }
+                    # Actualizar LiveList O(1)
+                    if ($script:LiveIndexMap.ContainsKey($key)) {
+                        $lidx = $script:LiveIndexMap[$key]
+                        if ($lidx -ge 0 -and $lidx -lt $script:LiveList.Count) {
+                            $script:LiveList[$lidx] = $newEntry
+                        }
+                    }
                 } else {
+                    # Item nuevo (archivo individual no visto antes)
                     $script:LiveItems[$key] = $newEntry
-                    $script:LiveList.Add($newEntry)
+                    $script:AllScannedItems.Add($newEntry)
+                    $isHidden = $false
+                    if ($depth -gt 0 -and $parentPath) {
+                        $pp = $parentPath
+                        while ($pp) {
+                            if ($script:CollapsedPaths.Contains($pp)) { $isHidden = $true; break }
+                            $pp2 = try { [System.IO.Path]::GetDirectoryName($pp) } catch { $null }
+                            $pp = if ($pp2 -and $pp2 -ne $pp) { $pp2 } else { $null }
+                        }
+                    }
+                    if (-not $isHidden) {
+                        $script:LiveIndexMap[$key] = $script:LiveList.Count
+                        $script:LiveList.Add($newEntry)
+                    }
                 }
                 $anyUpdate = $true
             }
             $msg = $null
         }
 
-        # Recalcular porcentajes y reordenar cuando hay cambios reales
         if ($anyUpdate) {
-            $gt = 0L
-            foreach ($v in $script:LiveList) { if ($v.SizeBytes -gt 0) { $gt += $v.SizeBytes } }
-            if ($gt -gt 0) {
-                # Reordenar por tamaño
-                $sorted = @($script:LiveList | Sort-Object SizeBytes -Descending)
-                $script:LiveList.Clear()
-                foreach ($s in $sorted) {
-                    if ($s.SizeBytes -gt 0) {
-                        $pct = [math]::Round($s.SizeBytes / $gt * 100, 1)
-                        $bw  = [math]::Max(0, [math]::Round($pct / 100 * $lw))
-                        $s.PctStr   = "$pct%"
-                        $s.TotalPct = $pct
-                        $s.BarWidth = [double]$bw
-                    }
-                    $script:LiveList.Add($s)
-                }
-                $gtStr = if ($gt -ge 1GB) { "{0:N1} GB" -f ($gt/1GB) } elseif ($gt -ge 1MB) { "{0:N0} MB" -f ($gt/1MB) } else { "{0:N0} KB" -f ($gt/1KB) }
-                $txtDiskScanStatus.Text = "Escaneando  $($script:LiveList.Count) elementos  ·  $gtStr  ·  $done/$total carpetas  ·  $cur"
-            }
+            $cnt = $script:AllScannedItems.Count
+            $txtDiskScanStatus.Text = "Escaneando…  $cnt elementos  ·  $done/$total carpetas  ·  $cur"
         }
 
         # ¿Terminó el runspace?
@@ -1847,21 +2011,28 @@ function Start-DiskScan {
             try { $ps.EndInvoke($async) | Out-Null } catch {}
             try { $ps.Dispose(); $rs.Close(); $rs.Dispose() } catch {}
 
-            # Ordenar final y recalcular barras
+            # Calcular tamaño total raíz (depth=0, solo carpetas y archivos de primer nivel)
             $gt2 = 0L
-            foreach ($v in $script:LiveList) { if ($v.SizeBytes -gt 0) { $gt2 += $v.SizeBytes } }
-            $sorted2 = @($script:LiveList | Sort-Object SizeBytes -Descending)
-            $script:LiveList.Clear()
-            $script:LiveItems.Clear()
-            foreach ($s in $sorted2) {
-                if ($s.SizeBytes -gt 0 -and $gt2 -gt 0) {
-                    $pct = [math]::Round($s.SizeBytes / $gt2 * 100, 1)
-                    $bw  = [math]::Max(0, [math]::Round($pct / 100 * $lw))
-                    $s.PctStr = "$pct%"; $s.TotalPct = $pct; $s.BarWidth = [double]$bw
-                }
-                $script:LiveList.Add($s)
-                $script:LiveItems[$s.FullPath] = $s
+            foreach ($v in $script:AllScannedItems) {
+                if ($v.Depth -eq 0 -and $v.SizeBytes -gt 0) { $gt2 += $v.SizeBytes }
             }
+
+            # Asignar porcentajes a todos los items
+            if ($gt2 -gt 0) {
+                foreach ($s in $script:AllScannedItems) {
+                    if ($s.SizeBytes -gt 0) {
+                        $pct = [math]::Round($s.SizeBytes / $gt2 * 100, 1)
+                        $bw  = [math]::Max(0, [math]::Round($pct / 100 * $lw))
+                        $s.PctStr   = "$pct%"
+                        $s.TotalPct = $pct
+                        $s.BarWidth = [double]$bw
+                    }
+                }
+            }
+
+            # Reconstruir LiveList final respetando colapsos
+            $script:LiveIndexMap.Clear()
+            Refresh-DiskView
 
             $pbDiskScan.IsIndeterminate = $false
             $pbDiskScan.Value = 100
@@ -1870,7 +2041,7 @@ function Start-DiskScan {
 
             $gtStr2 = if ($gt2 -ge 1GB) { "{0:N1} GB" -f ($gt2/1GB) } elseif ($gt2 -ge 1MB) { "{0:N0} MB" -f ($gt2/1MB) } else { "{0:N0} KB" -f ($gt2/1KB) }
             $emoji = if ([ScanControl]::Stop) { "⏹" } else { "✅" }
-            $txtDiskScanStatus.Text = "$emoji  $($script:LiveList.Count) elementos  ·  $gtStr2  ·  $(Get-Date -Format 'HH:mm:ss')"
+            $txtDiskScanStatus.Text = "$emoji  $($script:AllScannedItems.Count) elementos  ·  $gtStr2  ·  $(Get-Date -Format 'HH:mm:ss')"
         }
     })
     $uiTimer.Start()
@@ -1896,6 +2067,31 @@ $btnDiskStop.Add_Click({
     $btnDiskStop.IsEnabled = $false
     $txtDiskScanStatus.Text = "⏹ Cancelando — espera a que termine la carpeta actual…"
 })
+
+# ── Toggle colapsar/expandir carpetas ────────────────────────────────────────
+# Capturamos el click en el ListBox y comprobamos si el origen es el btnToggle
+$lbDiskTree.AddHandler(
+    [System.Windows.Controls.Button]::ClickEvent,
+    [System.Windows.RoutedEventHandler]{
+        param($s, $e)
+        $btn = $e.OriginalSource
+        # Asegurarse de que es el botón de toggle (tiene Tag = FullPath)
+        if ($btn -is [System.Windows.Controls.Button] -and $null -ne $btn.Tag -and $btn.Tag -ne "") {
+            $path = [string]$btn.Tag
+            if ($script:CollapsedPaths.Contains($path)) {
+                # Expandir
+                $script:CollapsedPaths.Remove($path) | Out-Null
+                if ($script:LiveItems.ContainsKey($path)) { $script:LiveItems[$path].ToggleIcon = "▼" }
+            } else {
+                # Colapsar
+                $script:CollapsedPaths.Add($path) | Out-Null
+                if ($script:LiveItems.ContainsKey($path)) { $script:LiveItems[$path].ToggleIcon = "▶" }
+            }
+            Refresh-DiskView
+            $e.Handled = $true
+        }
+    }
+)
 
 # Selección en la lista → actualizar panel de detalle
 $lbDiskTree.Add_SelectionChanged({
@@ -3792,11 +3988,43 @@ $btnExit.Add_Click({
 
 # Liberar mutex al cerrar por la X
 $window.Add_Closed({
+    # [BF3] Limpiar estado cacheado para evitar errores al reiniciar
     try { $script:AppMutex.ReleaseMutex() } catch { }
     try { $chartTimer.Stop() } catch { }
     if ($null -ne $script:DiskCounter) { try { $script:DiskCounter.Dispose() } catch { } }
+
+    # Señalizar parada del runspace de escaneo y esperar brevemente
     [ScanControl]::Stop = $true
-    if ($null -ne $script:DiskScanRunspace) { try { $script:DiskScanRunspace.Close() } catch {} }
+    if ($null -ne $script:DiskScanRunspace) {
+        try { $script:DiskScanRunspace.Close()   } catch {}
+        try { $script:DiskScanRunspace.Dispose() } catch {}
+        $script:DiskScanRunspace = $null
+    }
+
+    # Vaciar cola y colecciones vivas para liberar referencias y evitar errores al relanzar
+    if ($null -ne $script:ScanQueue) {
+        $tmp = $null
+        while ($script:ScanQueue.TryDequeue([ref]$tmp)) {}
+        $script:ScanQueue = $null
+    }
+    if ($null -ne $script:LiveList)       { try { $script:LiveList.Clear()       } catch {}; $script:LiveList       = $null }
+    if ($null -ne $script:LiveItems)      { try { $script:LiveItems.Clear()      } catch {}; $script:LiveItems      = $null }
+    if ($null -ne $script:AllScannedItems){ try { $script:AllScannedItems.Clear() } catch {}; $script:AllScannedItems = $null }
+    if ($null -ne $script:LiveIndexMap)   { try { $script:LiveIndexMap.Clear()   } catch {}; $script:LiveIndexMap   = $null }
+
+    # Liberar CancellationTokenSource de optimización si estaba activo
+    if ($null -ne $script:CancelSource) {
+        try { $script:CancelSource.Cancel()  } catch {}
+        try { $script:CancelSource.Dispose() } catch {}
+        $script:CancelSource = $null
+    }
+
+    # Detener el mutex del proceso de optimización si existe
+    if ($null -ne $script:OptRunspace) {
+        try { $script:OptRunspace.Close()   } catch {}
+        try { $script:OptRunspace.Dispose() } catch {}
+        $script:OptRunspace = $null
+    }
 })
 
 # ─────────────────────────────────────────────────────────────────────────────
