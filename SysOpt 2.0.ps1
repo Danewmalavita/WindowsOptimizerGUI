@@ -1496,27 +1496,32 @@ function Update-PerformanceTab {
 
         $coreItems = [System.Collections.Generic.List[object]]::new()
         try {
-            $counters = @()
-            for ($i = 0; $i -lt $cpuObj.NumberOfLogicalProcessors; $i++) {
-                $counters += "\Processor($i)\% Processor Time"
-            }
-            # Warm-up
-            $null = (Get-Counter $counters -SampleInterval 1 -MaxSamples 1 -ErrorAction SilentlyContinue)
-            $sample = (Get-Counter $counters -SampleInterval 1 -MaxSamples 1 -ErrorAction SilentlyContinue)
-            $readings = $sample.CounterSamples
-
-            for ($i = 0; $i -lt $cpuObj.NumberOfLogicalProcessors; $i++) {
-                $val = [math]::Round($readings[$i].CookedValue, 1)
-                $color = if ($val -ge 80) { "#FF6B84" } elseif ($val -ge 50) { "#FFB547" } else { "#5BA3FF" }
+            # Win32_PerfFormattedData_PerfOS_Processor: no bloquea, datos instantáneos
+            $cpuPerf = Get-CimInstance -ClassName Win32_PerfFormattedData_PerfOS_Processor `
+                           -ErrorAction SilentlyContinue |
+                       Where-Object { $_.Name -ne '_Total' } |
+                       Sort-Object { [int]($_.Name -replace '\D','0') }
+            if ($cpuPerf) {
+                foreach ($core in $cpuPerf) {
+                    $val = [math]::Round([double]$core.PercentProcessorTime, 1)
+                    $coreItems.Add([PSCustomObject]@{
+                        CoreLabel = "Core $($core.Name)"
+                        Usage     = "$val%"
+                        UsageNum  = $val
+                        Freq      = "$([math]::Round($cpuObj.CurrentClockSpeed / 1000.0, 2)) GHz"
+                    })
+                }
+            } else {
+                # Fallback: uso global del procesador
+                $val = [double]$cpuObj.LoadPercentage
                 $coreItems.Add([PSCustomObject]@{
-                    CoreLabel = "Core $i"
+                    CoreLabel = "CPU Total"
                     Usage     = "$val%"
                     UsageNum  = $val
                     Freq      = "$([math]::Round($cpuObj.CurrentClockSpeed / 1000.0, 2)) GHz"
                 })
             }
         } catch {
-            # Fallback: single entry with overall load
             $coreItems.Add([PSCustomObject]@{
                 CoreLabel = "CPU Total"
                 Usage     = "$($cpuObj.LoadPercentage)%"
@@ -1625,26 +1630,7 @@ function Update-PerformanceTab {
     try {
         $adapters = Get-NetAdapter -ErrorAction Stop
 
-        # Helper: convierte LinkSpeed (uint64, string "X bps", o $null) a bytes/s numérico
-        function Get-LinkSpeedBytes($raw) {
-            if ($null -eq $raw) { return 0UL }
-            # Si ya es numérico (uint64, int, etc.)
-            $n = 0UL
-            if ([uint64]::TryParse("$raw", [ref]$n)) { return $n }
-            # Si es string tipo "1 Gbps", "100 Mbps", "10 Kbps", "0 bps"
-            if ("$raw" -match '([\d\.]+)\s*(G|M|K)?bps') {
-                $val  = [double]$Matches[1]
-                $unit = "$($Matches[2])"
-                $multiplied = if     ($unit -eq 'G') { $val * 1000000000 }
-                              elseif ($unit -eq 'M') { $val * 1000000    }
-                              elseif ($unit -eq 'K') { $val * 1000       }
-                              else                   { $val              }
-                return [uint64]$multiplied
-            }
-            return 0UL
-        }
-
-        # Helper: formatea bytes/s en cadena legible
+        # Formatear bytes/s en cadena legible
         function Format-Rate([double]$bps) {
             if ($bps -ge 1MB) { return "{0:N1} MB/s" -f ($bps / 1MB) }
             if ($bps -ge 1KB) { return "{0:N0} KB/s" -f ($bps / 1KB) }
@@ -1652,16 +1638,28 @@ function Update-PerformanceTab {
             return "0 B/s"
         }
 
-        # Leer velocidades de tráfico actuales vía WMI (no bloquea UI, no requiere Sleep)
-        # Win32_PerfFormattedData_Tcpip_NetworkInterface actualiza cada segundo internamente
-        $wmiNet = @{}
+        # Convertir LinkSpeed a bps de forma segura (puede ser uint64, string "100 Mbps", etc.)
+        function Get-LinkBps($raw) {
+            $n = 0UL
+            if ([uint64]::TryParse("$raw", [ref]$n)) { return $n }
+            if ("$raw" -match '([\d\.]+)\s*(G|M|K)?bps') {
+                $v = [double]$Matches[1]; $u = "$($Matches[2])"
+                $m = if ($u -eq 'G') { 1000000000 } elseif ($u -eq 'M') { 1000000 } elseif ($u -eq 'K') { 1000 } else { 1 }
+                return [uint64]($v * $m)
+            }
+            return 0UL
+        }
+
+        # Velocidades de tráfico actuales desde WMI (bytes/s ya calculados por Windows, sin Sleep)
+        # Construir tabla: nombre-normalizado → objeto WMI
+        $wmiTable = @{}
         try {
-            $perfData = Get-CimInstance -ClassName Win32_PerfFormattedData_Tcpip_NetworkInterface `
-                            -ErrorAction SilentlyContinue
-            foreach ($ni in $perfData) {
-                # Normalizar nombre: WMI usa '_' en lugar de espacios y '#' para índices
-                $niName = $ni.Name -replace '[_#]+',' ' -replace '\s+',' '
-                $wmiNet[$niName.ToLower().Trim()] = $ni
+            $wmiRows = Get-CimInstance Win32_PerfFormattedData_Tcpip_NetworkInterface -ErrorAction SilentlyContinue
+            foreach ($row in $wmiRows) {
+                # WMI reemplaza espacios con '_', y añade sufijos como ' #2'
+                # Normalizar: quitar sufijo #N, pasar a minúsculas, trim
+                $norm = ($row.Name -replace '\s*#\d+$','' -replace '_',' ').ToLower().Trim()
+                $wmiTable[$norm] = $row
             }
         } catch {}
 
@@ -1675,59 +1673,54 @@ function Update-PerformanceTab {
             if (-not $ip) { $ip = "Sin IP" }
 
             # Tipo de adaptador
-            $adType = if ($a.InterfaceDescription -match 'Wi.?Fi|Wireless|WLAN|802\.11' -or
-                          "$($a.PhysicalMediaType)" -match '802\.11|Wireless|NativeWifi') {
-                "📶 WiFi"
-            } elseif ($a.InterfaceDescription -match 'Loopback|Pseudo') {
-                "🔁 Loopback"
-            } elseif ($a.InterfaceDescription -match 'Virtual|Hyper-V|VPN|TAP|TUN|VMware|VirtualBox') {
-                "🔷 Virtual"
-            } else {
-                "🔌 Ethernet"
-            }
+            $desc = "$($a.InterfaceDescription)"
+            $adType = if ($desc -match 'Wi.?Fi|Wireless|WLAN|802\.11' -or
+                          "$($a.PhysicalMediaType)" -match '802\.11|Wireless|NativeWifi') { "📶 WiFi" }
+                      elseif ($desc -match 'Loopback|Pseudo|Miniport')                   { "🔁 Virtual" }
+                      elseif ($desc -match 'Hyper-V|VMware|VirtualBox|TAP|TUN|VPN')      { "🔷 Virtual" }
+                      else                                                                { "🔌 Ethernet" }
 
-            # Velocidad de enlace nominal — conversión segura desde cualquier tipo
-            $linkBytes = Get-LinkSpeedBytes $a.LinkSpeed
-            $speedStr = if ($linkBytes -ge 1000000000) {
-                "$([math]::Round($linkBytes/1000000000.0, 0)) Gbps"
-            } elseif ($linkBytes -ge 1000000) {
-                "$([math]::Round($linkBytes/1000000.0, 0)) Mbps"
-            } elseif ($linkBytes -gt 0) {
-                "$linkBytes bps"
-            } else { "—" }
+            # Velocidad de enlace nominal
+            $linkBps = Get-LinkBps $a.LinkSpeed
+            $speedStr = if ($linkBps -ge 1000000000) { "$([math]::Round($linkBps/1e9,0)) Gbps" }
+                        elseif ($linkBps -ge 1000000) { "$([math]::Round($linkBps/1e6,0)) Mbps" }
+                        elseif ($linkBps -gt 0)       { "$linkBps bps" }
+                        else { "—" }
 
-            # Velocidad de tráfico actual desde WMI (bytes/s)
-            $rxBps = 0.0; $txBps = 0.0
-            try {
-                # Buscar coincidencia por descripción del adaptador (WMI usa descripción, no nombre)
-                $descLower = $a.InterfaceDescription.ToLower().Trim()
-                $wmiEntry  = $null
+            # Buscar fila WMI correspondiente al adaptador
+            # Estrategia 1: descripción exacta normalizada
+            $descNorm = ($desc -replace '\s*#\d+$','').ToLower().Trim()
+            $wmiRow = $wmiTable[$descNorm]
 
-                # Intentar coincidencia exacta primero
-                if ($wmiNet.ContainsKey($descLower)) {
-                    $wmiEntry = $wmiNet[$descLower]
-                } else {
-                    # Coincidencia parcial: buscar clave WMI que contenga parte del nombre
-                    foreach ($k in $wmiNet.Keys) {
-                        if ($k -like "*$($a.Name.ToLower())*" -or $descLower -like "*$($k.Substring(0,[math]::Min(15,$k.Length)))*") {
-                            $wmiEntry = $wmiNet[$k]; break
-                        }
+            # Estrategia 2: coincidencia parcial — buscar clave WMI que esté contenida en la descripción
+            if ($null -eq $wmiRow) {
+                foreach ($k in $wmiTable.Keys) {
+                    if ($descNorm -like "*$k*" -or $k -like "*$($a.Name.ToLower().Trim())*") {
+                        $wmiRow = $wmiTable[$k]; break
                     }
                 }
+            }
 
-                if ($wmiEntry) {
-                    $rxBps = [double]$wmiEntry.BytesReceivedPersec
-                    $txBps = [double]$wmiEntry.BytesSentPersec
+            # Estrategia 3: coincidencia de palabras clave del nombre del adaptador
+            if ($null -eq $wmiRow) {
+                $nameParts = $a.Name.ToLower() -split '\s+'
+                foreach ($k in $wmiTable.Keys) {
+                    $matched = $true
+                    foreach ($part in $nameParts) {
+                        if ($part.Length -gt 3 -and $k -notlike "*$part*") { $matched = $false; break }
+                    }
+                    if ($matched) { $wmiRow = $wmiTable[$k]; break }
                 }
-            } catch {}
+            }
 
-            # Bytes totales acumulados desde arranque
+            $rxBps = if ($null -ne $wmiRow) { [double]$wmiRow.BytesReceivedPersec } else { 0.0 }
+            $txBps = if ($null -ne $wmiRow) { [double]$wmiRow.BytesSentPersec     } else { 0.0 }
+
+            # Totales acumulados desde arranque
             $ioStr = ""
             try {
                 $stats = Get-NetAdapterStatistics -Name $a.Name -ErrorAction SilentlyContinue
-                if ($stats) {
-                    $ioStr = "Total ↓ $(Format-Bytes $stats.ReceivedBytes)  ↑ $(Format-Bytes $stats.SentBytes)"
-                }
+                if ($stats) { $ioStr = "Total ↓ $(Format-Bytes $stats.ReceivedBytes)  ↑ $(Format-Bytes $stats.SentBytes)" }
             } catch {}
 
             $statusColor = if ($a.Status -eq "Up") { "#4AE896" } else { "#9BA4C0" }
@@ -1735,7 +1728,7 @@ function Update-PerformanceTab {
             $netItems.Add([PSCustomObject]@{
                 Name        = "$adType  $($a.Name)"
                 IP          = "IP: $ip  |  MAC: $($a.MacAddress)"
-                MAC         = $a.InterfaceDescription
+                MAC         = $desc
                 Speed       = $speedStr
                 Status      = "$($a.Status)   ↓ $(Format-Rate $rxBps)   ↑ $(Format-Rate $txBps)"
                 StatusColor = $statusColor
@@ -1745,14 +1738,12 @@ function Update-PerformanceTab {
         $icNetAdapters.ItemsSource = $netItems
     } catch {
         $icNetAdapters.ItemsSource = @([PSCustomObject]@{
-            Name        = "⚠ Error al leer adaptadores"
-            IP          = $_.Exception.Message
-            MAC         = ""; Speed = ""; Status = "Error"
-            StatusColor = "#FF6B84"; BytesIO = ""
+            Name="⚠ Error al leer adaptadores"; IP=$_.Exception.Message
+            MAC=""; Speed=""; Status="Error"; StatusColor="#FF6B84"; BytesIO=""
         })
     }
 
-    $txtPerfStatus.Text = "Actualizado: $(Get-Date -Format 'HH:mm:ss')"
+        $txtPerfStatus.Text = "Actualizado: $(Get-Date -Format 'HH:mm:ss')"
 }
 
 $btnRefreshPerf.Add_Click({ Update-PerformanceTab })
@@ -1979,7 +1970,7 @@ function Start-DiskScan {
         $anyUpdate = $false
         $processed = 0
         $msg = $null
-        while ($processed -lt 400 -and $script:ScanQueue.TryDequeue([ref]$msg)) {
+        while ($processed -lt 400 -and ($null -ne $script:ScanQueue) -and $script:ScanQueue.TryDequeue([ref]$msg)) {
             $processed++
             $key        = $msg.Key
             $depth      = if ($msg.PSObject.Properties['Depth']) { [int]$msg.Depth } else { 0 }
