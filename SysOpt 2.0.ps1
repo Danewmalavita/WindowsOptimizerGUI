@@ -71,6 +71,35 @@ public class MemoryHelper {
 }
 "@ -ErrorAction SilentlyContinue
 
+# ─── Clase DiskItem con INotifyPropertyChanged para bindings reactivos en WPF ──
+Add-Type @"
+using System;
+using System.ComponentModel;
+public class DiskItem : INotifyPropertyChanged {
+    public event PropertyChangedEventHandler PropertyChanged;
+    private void N(string p) { if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs(p)); }
+    public string DisplayName { get; set; }
+    public string FullPath    { get; set; }
+    public string ParentPath  { get; set; }
+    public long   SizeBytes   { get; set; }
+    public string SizeStr     { get; set; }
+    public string SizeColor   { get; set; }
+    public string PctStr      { get; set; }
+    public string FileCount   { get; set; }
+    public int    DirCount    { get; set; }
+    public bool   IsDir       { get; set; }
+    public bool   HasChildren { get; set; }
+    public string Icon        { get; set; }
+    public string Indent      { get; set; }
+    public double BarWidth    { get; set; }
+    public string BarColor    { get; set; }
+    public double TotalPct    { get; set; }
+    public int    Depth       { get; set; }
+    private string _ti = "Collapsed"; public string ToggleVisibility { get { return _ti; } set { if(_ti!=value){_ti=value;N("ToggleVisibility");} } }
+    private string _ic = "▶";         public string ToggleIcon       { get { return _ic; } set { if(_ic!=value){_ic=value;N("ToggleIcon");} } }
+}
+"@ -ErrorAction SilentlyContinue
+
 # Clase C# compartida entre runspaces para señal de parada del escáner
 Add-Type @"
 public static class ScanControl {
@@ -1592,30 +1621,30 @@ function Update-PerformanceTab {
         })
     }
 
-    # ── Tarjetas de Red — sin Sleep, usa contadores de rendimiento del sistema ──
+    # ── Tarjetas de Red ──────────────────────────────────────────────────────────
     try {
-        # Obtener todos los adaptadores (Up + Disconnected)
         $adapters = Get-NetAdapter -ErrorAction Stop
 
-        $netItems = [System.Collections.Generic.List[object]]::new()
-
-        # Leer contadores de rendimiento de red (bytes/s ya calculados por Windows)
-        $rxCounters = @{}; $txCounters = @{}
-        try {
-            $perfSamples = Get-Counter '\Network Interface(*)\Bytes Received/sec',
-                                       '\Network Interface(*)\Bytes Sent/sec' `
-                                       -SampleInterval 1 -MaxSamples 1 -ErrorAction SilentlyContinue
-            if ($perfSamples) {
-                foreach ($s in $perfSamples.CounterSamples) {
-                    # Normalizar nombre de instancia: minúsculas, sin paréntesis de índice (#N)
-                    $inst = ($s.InstanceName -replace '\s*#\d+$','').ToLower().Trim()
-                    if ($s.Path -match 'Bytes Received') { $rxCounters[$inst] = $s.CookedValue }
-                    else                                 { $txCounters[$inst] = $s.CookedValue }
-                }
+        # Helper: convierte LinkSpeed (uint64, string "X bps", o $null) a bytes/s numérico
+        function Get-LinkSpeedBytes($raw) {
+            if ($null -eq $raw) { return 0UL }
+            # Si ya es numérico (uint64, int, etc.)
+            $n = 0UL
+            if ([uint64]::TryParse("$raw", [ref]$n)) { return $n }
+            # Si es string tipo "1 Gbps", "100 Mbps", "10 Kbps", "0 bps"
+            if ("$raw" -match '([\d\.]+)\s*(G|M|K)?bps') {
+                $val  = [double]$Matches[1]
+                $unit = "$($Matches[2])"
+                $multiplied = if     ($unit -eq 'G') { $val * 1000000000 }
+                              elseif ($unit -eq 'M') { $val * 1000000    }
+                              elseif ($unit -eq 'K') { $val * 1000       }
+                              else                   { $val              }
+                return [uint64]$multiplied
             }
-        } catch {}
+            return 0UL
+        }
 
-        # Helper para formatear bytes/s
+        # Helper: formatea bytes/s en cadena legible
         function Format-Rate([double]$bps) {
             if ($bps -ge 1MB) { return "{0:N1} MB/s" -f ($bps / 1MB) }
             if ($bps -ge 1KB) { return "{0:N0} KB/s" -f ($bps / 1KB) }
@@ -1623,15 +1652,31 @@ function Update-PerformanceTab {
             return "0 B/s"
         }
 
+        # Leer velocidades de tráfico actuales vía WMI (no bloquea UI, no requiere Sleep)
+        # Win32_PerfFormattedData_Tcpip_NetworkInterface actualiza cada segundo internamente
+        $wmiNet = @{}
+        try {
+            $perfData = Get-CimInstance -ClassName Win32_PerfFormattedData_Tcpip_NetworkInterface `
+                            -ErrorAction SilentlyContinue
+            foreach ($ni in $perfData) {
+                # Normalizar nombre: WMI usa '_' en lugar de espacios y '#' para índices
+                $niName = $ni.Name -replace '[_#]+',' ' -replace '\s+',' '
+                $wmiNet[$niName.ToLower().Trim()] = $ni
+            }
+        } catch {}
+
+        $netItems = [System.Collections.Generic.List[object]]::new()
+
         foreach ($a in $adapters) {
             # IP
-            $ip = (Get-NetIPAddress -InterfaceIndex $a.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+            $ip = (Get-NetIPAddress -InterfaceIndex $a.InterfaceIndex `
+                       -AddressFamily IPv4 -ErrorAction SilentlyContinue |
                    Select-Object -First 1).IPAddress
             if (-not $ip) { $ip = "Sin IP" }
 
-            # Tipo: WiFi vs Ethernet vs Loopback vs Virtual
+            # Tipo de adaptador
             $adType = if ($a.InterfaceDescription -match 'Wi.?Fi|Wireless|WLAN|802\.11' -or
-                          $a.PhysicalMediaType    -match '802\.11|Wireless') {
+                          "$($a.PhysicalMediaType)" -match '802\.11|Wireless|NativeWifi') {
                 "📶 WiFi"
             } elseif ($a.InterfaceDescription -match 'Loopback|Pseudo') {
                 "🔁 Loopback"
@@ -1641,24 +1686,42 @@ function Update-PerformanceTab {
                 "🔌 Ethernet"
             }
 
-            # Velocidad de enlace nominal
-            $speedStr = if ($a.LinkSpeed -gt 0) {
-                $bps = $a.LinkSpeed
-                if ($bps -ge 1GB) { "$([math]::Round($bps/1GB,0)) Gbps" }
-                else              { "$([math]::Round($bps/1MB,0)) Mbps" }
+            # Velocidad de enlace nominal — conversión segura desde cualquier tipo
+            $linkBytes = Get-LinkSpeedBytes $a.LinkSpeed
+            $speedStr = if ($linkBytes -ge 1000000000) {
+                "$([math]::Round($linkBytes/1000000000.0, 0)) Gbps"
+            } elseif ($linkBytes -ge 1000000) {
+                "$([math]::Round($linkBytes/1000000.0, 0)) Mbps"
+            } elseif ($linkBytes -gt 0) {
+                "$linkBytes bps"
             } else { "—" }
 
-            # Buscar contador por descripción normalizada
-            $instKey = ($a.InterfaceDescription -replace '\s*#\d+$','').ToLower().Trim()
-            # Fallback: buscar clave que contenga el nombre del adaptador
-            if (-not $rxCounters.ContainsKey($instKey)) {
-                $instKey = $rxCounters.Keys | Where-Object { $_ -like "*$($a.Name.ToLower())*" } | Select-Object -First 1
-            }
+            # Velocidad de tráfico actual desde WMI (bytes/s)
+            $rxBps = 0.0; $txBps = 0.0
+            try {
+                # Buscar coincidencia por descripción del adaptador (WMI usa descripción, no nombre)
+                $descLower = $a.InterfaceDescription.ToLower().Trim()
+                $wmiEntry  = $null
 
-            $rxBps = if ($instKey -and $rxCounters.ContainsKey($instKey)) { $rxCounters[$instKey] } else { 0.0 }
-            $txBps = if ($instKey -and $txCounters.ContainsKey($instKey)) { $txCounters[$instKey] } else { 0.0 }
+                # Intentar coincidencia exacta primero
+                if ($wmiNet.ContainsKey($descLower)) {
+                    $wmiEntry = $wmiNet[$descLower]
+                } else {
+                    # Coincidencia parcial: buscar clave WMI que contenga parte del nombre
+                    foreach ($k in $wmiNet.Keys) {
+                        if ($k -like "*$($a.Name.ToLower())*" -or $descLower -like "*$($k.Substring(0,[math]::Min(15,$k.Length)))*") {
+                            $wmiEntry = $wmiNet[$k]; break
+                        }
+                    }
+                }
 
-            # Bytes totales acumulados
+                if ($wmiEntry) {
+                    $rxBps = [double]$wmiEntry.BytesReceivedPersec
+                    $txBps = [double]$wmiEntry.BytesSentPersec
+                }
+            } catch {}
+
+            # Bytes totales acumulados desde arranque
             $ioStr = ""
             try {
                 $stats = Get-NetAdapterStatistics -Name $a.Name -ErrorAction SilentlyContinue
@@ -1681,9 +1744,11 @@ function Update-PerformanceTab {
         }
         $icNetAdapters.ItemsSource = $netItems
     } catch {
-        # Mostrar el error real para diagnóstico
         $icNetAdapters.ItemsSource = @([PSCustomObject]@{
-            Name="Error al leer adaptadores"; IP="$($_.Exception.Message)"; MAC=""; Speed=""; Status="Error"; StatusColor="#FF6B84"; BytesIO=""
+            Name        = "⚠ Error al leer adaptadores"
+            IP          = $_.Exception.Message
+            MAC         = ""; Speed = ""; Status = "Error"
+            StatusColor = "#FF6B84"; BytesIO = ""
         })
     }
 
@@ -1725,15 +1790,18 @@ function Refresh-DiskView {
     if ($null -eq $script:LiveList) { return }
     $script:LiveList.Clear()
     foreach ($item in $script:AllScannedItems) {
-        # Comprobar si algún ancestro está colapsado
+        # Sincronizar icono de toggle con el estado actual de CollapsedPaths
+        if ($item.IsDir -and $item.HasChildren) {
+            $item.ToggleIcon = if ($script:CollapsedPaths.Contains($item.FullPath)) { "▶" } else { "▼" }
+        }
+
+        # Determinar si algún ancestro está colapsado
         $hidden = $false
         if ($item.Depth -gt 0 -and $null -ne $item.ParentPath) {
-            # Recorrer jerarquía de padres
             $checkPath = $item.ParentPath
             while ($checkPath) {
                 if ($script:CollapsedPaths.Contains($checkPath)) { $hidden = $true; break }
-                # Subir un nivel
-                $up = [System.IO.Path]::GetDirectoryName($checkPath)
+                $up = try { [System.IO.Path]::GetDirectoryName($checkPath) } catch { $null }
                 $checkPath = if ($up -and $up -ne $checkPath) { $up } else { $null }
             }
         }
@@ -1921,13 +1989,26 @@ function Start-DiskScan {
             if (-not $msg.Done) {
                 # Placeholder de carpeta — solo si no existe ya
                 if (-not $script:LiveItems.ContainsKey($key)) {
-                    $entry = [PSCustomObject]@{
-                        DisplayName="$($msg.Name)"; FullPath=$key; ParentPath=$parentPath
-                        SizeBytes=-1L; SizeStr="…"; SizeColor="#8B96B8"
-                        PctStr="—"; FileCount="…"; DirCount=0; IsDir=$true; HasChildren=$false
-                        Icon="📁"; Indent=$indent; BarWidth=0.0; BarColor="#3A4468"; TotalPct=0.0
-                        Depth=$depth; ToggleIcon="▶"; ToggleVisibility="Collapsed"
-                    }
+                    $entry = New-Object DiskItem
+                    $entry.DisplayName      = $msg.Name
+                    $entry.FullPath         = $key
+                    $entry.ParentPath       = $parentPath
+                    $entry.SizeBytes        = -1L
+                    $entry.SizeStr          = "…"
+                    $entry.SizeColor        = "#8B96B8"
+                    $entry.PctStr           = "—"
+                    $entry.FileCount        = "…"
+                    $entry.DirCount         = 0
+                    $entry.IsDir            = $true
+                    $entry.HasChildren      = $false
+                    $entry.Icon             = "📁"
+                    $entry.Indent           = $indent
+                    $entry.BarWidth         = 0.0
+                    $entry.BarColor         = "#3A4468"
+                    $entry.TotalPct         = 0.0
+                    $entry.Depth            = $depth
+                    $entry.ToggleIcon       = "▶"
+                    $entry.ToggleVisibility = "Collapsed"
                     $script:LiveItems[$key] = $entry
                     $script:AllScannedItems.Add($entry)
                     # Visibilidad según colapso de padres
@@ -1956,29 +2037,42 @@ function Start-DiskScan {
                 $togVis  = if ($hasCh) { "Visible" } else { "Collapsed" }
                 $togIcon = if ($script:CollapsedPaths.Contains($key)) { "▶" } else { "▼" }
 
-                $newEntry = [PSCustomObject]@{
-                    DisplayName=$msg.Name; FullPath=$key; ParentPath=$parentPath
-                    SizeBytes=$sz; SizeStr=$szStr; SizeColor=$sc
-                    PctStr="—"; FileCount=$fc; DirCount=$msg.Dirs; IsDir=$msg.IsDir; HasChildren=$hasCh
-                    Icon=$icon; Indent=$indent; BarWidth=0.0; BarColor=$sc; TotalPct=0.0
-                    Depth=$depth; ToggleIcon=$togIcon; ToggleVisibility=$togVis
-                }
-
                 if ($script:LiveItems.ContainsKey($key)) {
-                    # Actualizar item existente (placeholder → datos reales)
-                    $oldEntry = $script:LiveItems[$key]
-                    $aidx = $script:AllScannedItems.IndexOf($oldEntry)
-                    if ($aidx -ge 0) { $script:AllScannedItems[$aidx] = $newEntry }
-                    $script:LiveItems[$key] = $newEntry
-                    # Actualizar LiveList O(1)
-                    if ($script:LiveIndexMap.ContainsKey($key)) {
-                        $lidx = $script:LiveIndexMap[$key]
-                        if ($lidx -ge 0 -and $lidx -lt $script:LiveList.Count) {
-                            $script:LiveList[$lidx] = $newEntry
-                        }
-                    }
+                    # Actualizar en-lugar el DiskItem existente — INPC notifica a WPF automáticamente
+                    $existing = $script:LiveItems[$key]
+                    $existing.SizeBytes        = $sz
+                    $existing.SizeStr          = $szStr
+                    $existing.SizeColor        = $sc
+                    $existing.FileCount        = $fc
+                    $existing.DirCount         = $msg.Dirs
+                    $existing.IsDir            = $msg.IsDir
+                    $existing.HasChildren      = $hasCh
+                    $existing.Icon             = $icon
+                    $existing.BarColor         = $sc
+                    $existing.ToggleVisibility = $togVis
+                    $existing.ToggleIcon       = $togIcon
                 } else {
                     # Item nuevo (archivo individual no visto antes)
+                    $newEntry = New-Object DiskItem
+                    $newEntry.DisplayName      = $msg.Name
+                    $newEntry.FullPath         = $key
+                    $newEntry.ParentPath       = $parentPath
+                    $newEntry.SizeBytes        = $sz
+                    $newEntry.SizeStr          = $szStr
+                    $newEntry.SizeColor        = $sc
+                    $newEntry.PctStr           = "—"
+                    $newEntry.FileCount        = $fc
+                    $newEntry.DirCount         = $msg.Dirs
+                    $newEntry.IsDir            = $msg.IsDir
+                    $newEntry.HasChildren      = $hasCh
+                    $newEntry.Icon             = $icon
+                    $newEntry.Indent           = $indent
+                    $newEntry.BarWidth         = 0.0
+                    $newEntry.BarColor         = $sc
+                    $newEntry.TotalPct         = 0.0
+                    $newEntry.Depth            = $depth
+                    $newEntry.ToggleIcon       = $togIcon
+                    $newEntry.ToggleVisibility = $togVis
                     $script:LiveItems[$key] = $newEntry
                     $script:AllScannedItems.Add($newEntry)
                     $isHidden = $false
@@ -2017,7 +2111,7 @@ function Start-DiskScan {
                 if ($v.Depth -eq 0 -and $v.SizeBytes -gt 0) { $gt2 += $v.SizeBytes }
             }
 
-            # Asignar porcentajes a todos los items
+            # Asignar porcentajes y corregir ToggleVisibility final en todos los items
             if ($gt2 -gt 0) {
                 foreach ($s in $script:AllScannedItems) {
                     if ($s.SizeBytes -gt 0) {
@@ -2026,6 +2120,11 @@ function Start-DiskScan {
                         $s.PctStr   = "$pct%"
                         $s.TotalPct = $pct
                         $s.BarWidth = [double]$bw
+                    }
+                    # Asegurar ToggleVisibility correcto según HasChildren real
+                    if ($s.IsDir) {
+                        $s.ToggleVisibility = if ($s.HasChildren) { "Visible" } else { "Collapsed" }
+                        $s.ToggleIcon       = if ($script:CollapsedPaths.Contains($s.FullPath)) { "▶" } else { "▼" }
                     }
                 }
             }
@@ -2069,24 +2168,27 @@ $btnDiskStop.Add_Click({
 })
 
 # ── Toggle colapsar/expandir carpetas ────────────────────────────────────────
-# Capturamos el click en el ListBox y comprobamos si el origen es el btnToggle
 $lbDiskTree.AddHandler(
     [System.Windows.Controls.Button]::ClickEvent,
     [System.Windows.RoutedEventHandler]{
         param($s, $e)
         $btn = $e.OriginalSource
-        # Asegurarse de que es el botón de toggle (tiene Tag = FullPath)
-        if ($btn -is [System.Windows.Controls.Button] -and $null -ne $btn.Tag -and $btn.Tag -ne "") {
+        if ($btn -is [System.Windows.Controls.Button] -and $null -ne $btn.Tag -and "$($btn.Tag)" -ne "") {
             $path = [string]$btn.Tag
             if ($script:CollapsedPaths.Contains($path)) {
-                # Expandir
+                # Expandir: quitar de colapsados, actualizar icono via INPC
                 $script:CollapsedPaths.Remove($path) | Out-Null
-                if ($script:LiveItems.ContainsKey($path)) { $script:LiveItems[$path].ToggleIcon = "▼" }
+                if ($script:LiveItems.ContainsKey($path)) {
+                    $script:LiveItems[$path].ToggleIcon = "▼"   # INPC notifica WPF sin Refresh
+                }
             } else {
-                # Colapsar
+                # Colapsar: añadir a colapsados, actualizar icono via INPC
                 $script:CollapsedPaths.Add($path) | Out-Null
-                if ($script:LiveItems.ContainsKey($path)) { $script:LiveItems[$path].ToggleIcon = "▶" }
+                if ($script:LiveItems.ContainsKey($path)) {
+                    $script:LiveItems[$path].ToggleIcon = "▶"   # INPC notifica WPF sin Refresh
+                }
             }
+            # Refresh solo reconstruye qué items son visibles (muestra/oculta hijos)
             Refresh-DiskView
             $e.Handled = $true
         }
