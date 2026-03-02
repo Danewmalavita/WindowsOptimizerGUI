@@ -24,16 +24,22 @@ Write-Host ""
 # Busca $script:AppVersion = "X.Y.Z" en el .ps1 que está un nivel arriba
 $appVersion  = "0.0.0"
 $buildDate   = Get-Date -Format "yyyy-MM-dd"
-# SysOpt.ps1 esta en la raiz del proyecto (padre de .\libs\)
-$ps1Path = Join-Path $outDir "SysOpt.ps1"
-if (-not (Test-Path $ps1Path)) {
-    $ps1Path = Join-Path (Split-Path $outDir -Parent) "SysOpt.ps1"
+# Buscar SysOpt.ps1 subiendo hasta 4 niveles desde el script
+$ps1Path = $null
+$searchDir = $here
+for ($i = 0; $i -lt 4; $i++) {
+    $candidate = Join-Path $searchDir "SysOpt.ps1"
+    if (Test-Path $candidate) { $ps1Path = $candidate; break }
+    $parent = Split-Path $searchDir -Parent
+    if (-not $parent -or $parent -eq $searchDir) { break }
+    $searchDir = $parent
 }
-if (Test-Path $ps1Path) {
+if ($ps1Path -and (Test-Path $ps1Path)) {
     $versionLine = Select-String -Path $ps1Path -Pattern '\$script:AppVersion\s*=\s*"([\d\.]+)"' |
                    Select-Object -First 1
-    if ($versionLine -and $versionLine.Matches.Count -gt 0) {
-        $appVersion = $versionLine.Matches[0].Groups[1].Value
+    if ($versionLine) {
+        $m = [regex]::Match($versionLine.Line, '\$script:AppVersion\s*=\s*"([\d\.]+)"')
+        if ($m.Success) { $appVersion = $m.Groups[1].Value }
     }
 }
 # Convertir "3.2.0" → "3.2.0.0" (AssemblyVersion requiere 4 componentes)
@@ -101,6 +107,15 @@ $extraRefs = @{
     )
     "MemoryHelper.cs"       = @()
     "WseTrim.cs"            = @()
+    "SysOpt.UIEngine.cs"    = @(
+        "System.dll",
+        "System.Core.dll",
+        "PresentationCore.dll",
+        "PresentationFramework.dll",
+        "WindowsBase.dll",
+        "System.Xaml.dll",
+        "System.Windows.Forms.dll"
+    )
 }
 
 # Mapa: nombre del .cs -> nombre del .dll de salida
@@ -111,11 +126,12 @@ $outputNames = @{
     "WseTrim.cs"            = "SysOpt.WseTrim.dll"
     "SysOpt.Core.cs"        = "SysOpt.Core.dll"
     "SysOpt.ThemeEngine.cs" = "SysOpt.ThemeEngine.dll"
+    "SysOpt.UIEngine.cs"    = "SysOpt.UIEngine.dll"
 }
 
 # ── Auto-descubrir todos los .cs (excluir archivos _old / _bak / Copy) ────────
 $sources = Get-ChildItem -Path $here -Filter "*.cs" |
-    Where-Object { $_.Name -notmatch "_old|_bak|_copy|-Copy|\.Test\." } |
+    Where-Object { $_.Name -notmatch "_old|_bak|_copy|-Copy|\.Test\.|_AssemblyInfo_tmp" } |
     Sort-Object Name
 
 if ($sources.Count -eq 0) {
@@ -152,17 +168,39 @@ foreach ($src in $sources) {
     $refs = @()
     if ($extraRefs.ContainsKey($src.Name)) {
         foreach ($ref in $extraRefs[$src.Name]) {
-            # Primero buscar en el runtime dir, luego en GAC
-            $refFull = Join-Path ([Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()) $ref
-            if (Test-Path $refFull) {
-                $refs += "/r:$refFull"
-            } else {
-                # Intentar resolver desde GAC via [System.Reflection.Assembly]
+            $resolved = $null
+
+            # 1) Runtime dir (.NET Framework: mscorlib, System, etc.)
+            $runtimePath = Join-Path ([Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()) $ref
+            if (Test-Path $runtimePath) { $resolved = $runtimePath }
+
+            # 2) WPF assemblies — viven en el GAC WPF, no en el runtime dir
+            if (-not $resolved) {
+                $wpfCandidates = @(
+                    "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\$ref",
+                    "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2\$ref",
+                    "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.1\$ref",
+                    "C:\Program Files\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\$ref",
+                    "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\WPF\$ref"
+                )
+                foreach ($c in $wpfCandidates) {
+                    if (Test-Path $c) { $resolved = $c; break }
+                }
+            }
+
+            # 3) Cargar via GAC y usar la ubicacion del ensamblado en memoria
+            if (-not $resolved) {
                 try {
                     $asmName = [System.IO.Path]::GetFileNameWithoutExtension($ref)
                     $asm = [System.Reflection.Assembly]::LoadWithPartialName($asmName)
-                    if ($asm) { $refs += "/r:$($asm.Location)" }
+                    if ($asm -and (Test-Path $asm.Location)) { $resolved = $asm.Location }
                 } catch {}
+            }
+
+            if ($resolved) {
+                $refs += "/r:$resolved"
+            } else {
+                Write-Host "  [WARN] No se resolvio la referencia: $ref" -ForegroundColor Yellow
             }
         }
     }
