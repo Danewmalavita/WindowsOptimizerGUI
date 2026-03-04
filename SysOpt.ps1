@@ -939,6 +939,7 @@ try {
         @{ Guard = 'SysOpt.StartupManager.StartupEngine'; Dll = 'SysOpt.StartupManager.dll' },
         @{ Guard = 'SysOpt.Diagnostics.DiagnosticsEngine'; Dll = 'SysOpt.Diagnostics.dll' },
         @{ Guard = 'SysOpt.Toast.ToastManager';              Dll = 'SysOpt.Toast.dll'        }
+        @{ Guard = 'SysOpt.Breakout.BreakoutEngine';          Dll = 'SysOpt.Breakout.dll'     }
     )
 
     Write-Log "── Auditoría de ensamblados ──────────────────────────────" -Level "DBG" -NoUI
@@ -3111,6 +3112,62 @@ function global:Apply-ThemeWithProgress {
 # ─────────────────────────────────────────────────────────────────────────────
 # [OPTIONS] Ventana de Configuración — Win11 Settings style
 # ─────────────────────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════
+# 🎮  Easter Egg: Atari Breakout
+# ═══════════════════════════════════════════════════════
+function global:Show-BreakoutGame {
+    # ── Easter Egg: Atari Breakout (proceso aislado) ──
+    # Runs in a separate powershell.exe process so the game loop
+    # never competes with SysOpt's UI thread, Dispatcher or GC.
+
+    # Resolve absolute paths
+    $brkDll  = (Join-Path $script:_libsDir   "SysOpt.Breakout.dll").Replace("'","''")
+    $brkXaml = (Join-Path $script:XamlFolder "BreakoutWindow.xaml").Replace("'","''")
+
+    # Collect theme colors + lang strings (baked into the child script)
+    $cBg     = Get-TC 'BgDeep'       '#0D0F1A'
+    $cBall   = Get-TC 'TextPrimary'  '#E8EAF6'
+    $cPaddle = Get-TC 'AccentBlue'   '#5BA3FF'
+    $cHud    = Get-TC 'TextMuted'    '#6B7494'
+    $cAccent = Get-TC 'AccentBlue'   '#5BA3FF'
+    $cBorder = Get-TC 'BorderSubtle' '#252B40'
+
+    $sPlay  = $LangRS.BrkClickToPlay
+    $sCont  = $LangRS.BrkClickContinue
+    $sOver  = $LangRS.BrkGameOver
+    $sWin   = $LangRS.BrkYouWin
+    $sScore = $LangRS.BrkScore
+    $sLives = $LangRS.BrkLives
+    $sPts   = $LangRS.BrkPts
+
+    # Build self-contained script — all deps resolved, no external refs
+    $code = @"
+Add-Type -AssemblyName PresentationFramework
+Add-Type -AssemblyName PresentationCore
+Add-Type -AssemblyName WindowsBase
+Add-Type -Path '$brkDll'
+[xml]`$x = Get-Content -LiteralPath '$brkXaml' -Encoding UTF8
+`$r = [System.Xml.XmlNodeReader]::new(`$x)
+`$w = [System.Windows.Markup.XamlReader]::Load(`$r)
+`$c = `$w.FindName('gameCanvas')
+`$e = [SysOpt.Breakout.BreakoutEngine]::new()
+`$e.Init(`$c,'$cBg','$cBall','$cPaddle','$cHud','$cAccent','$cBorder','$sPlay','$sCont','$sOver','$sWin','$sScore','$sLives','$sPts')
+`$w.Add_Closed({ `$e.Stop() })
+[void]`$w.ShowDialog()
+"@
+
+    # Encode as Base64 to avoid all escaping issues on the command line
+    $bytes = [System.Text.Encoding]::Unicode.GetBytes($code)
+    $enc   = [Convert]::ToBase64String($bytes)
+
+    # Fire & forget — completely isolated process
+    Start-Process powershell.exe -ArgumentList @(
+        '-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden',
+        '-EncodedCommand', $enc
+    ) -WindowStyle Hidden
+}
+
 function global:Show-OptionsWindow {
     param([string]$StartPage = "interface")
     $optXaml = [XamlLoader]::Load($script:XamlFolder, "OptionsWindow")
@@ -3258,6 +3315,23 @@ function global:Show-OptionsWindow {
                 $e.Handled = $true
             })
         }
+
+        # ── Easter egg: 4 clicks on logo → Breakout ──
+        if ($null -ne $aboutLogoOpt) {
+            $_egg = @{ clicks = 0; last = [DateTime]::MinValue }
+            $aboutLogoOpt.Add_MouseLeftButtonDown({
+                $now = [DateTime]::Now
+                if (($now - $_egg.last).TotalMilliseconds -gt 1500) { $_egg.clicks = 0 }
+                $_egg.clicks++
+                $_egg.last = $now
+                if ($_egg.clicks -ge 4) {
+                    $_egg.clicks = 0
+                    Show-BreakoutGame
+                }
+            }.GetNewClosure())
+        }
+
+
         # Changelog button handler — pre-capture script-scope vars for closure
         if ($null -ne $btnChangelog) {
             $_xf = $script:XamlFolder
