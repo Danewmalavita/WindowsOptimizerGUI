@@ -126,6 +126,12 @@ $extraRefs = @{
         "WindowsBase.dll",
         "System.Xaml.dll"
     )
+    "SysOpt.Breakout.cs"    = @(
+        "PresentationFramework.dll",
+        "PresentationCore.dll",
+        "WindowsBase.dll",
+        "System.Xaml.dll"
+    )
 }
 
 # Mapa: nombre del .cs -> DLLs locales del proyecto que necesita como /r:
@@ -152,6 +158,7 @@ $outputNames = @{
     "SysOpt.StartupManager.cs" = "SysOpt.StartupManager.dll"
     "SysOpt.Diagnostics.cs"    = "SysOpt.Diagnostics.dll"
     "SysOpt.Toast.cs"          = "SysOpt.Toast.dll"
+    "SysOpt.Breakout.cs"       = "SysOpt.Breakout.dll"
 }
 
 # ── Auto-descubrir todos los .cs (excluir archivos _old / _bak / Copy) ────────
