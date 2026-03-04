@@ -1,0 +1,12 @@
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <RootNamespace>SysOpt.Diagnostics</RootNamespace>
+    <AssemblyName>SysOpt.Diagnostics</AssemblyName>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="SysOpt.Diagnostics.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

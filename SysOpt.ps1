@@ -24,7 +24,15 @@ $script:AppNotes   = @{
                 "[AGENT] AgentBus + IAgentTransport + AgentThresholds — hooks preparados, standalone safe",
                 "[DLL] compile-dlls.ps1 renovado — auto-descubre todos los .cs de .\libs\ con referencias correctas",
                 "[DLL] WseTrim cargado al inicio (junto al resto) en lugar de bajo demanda",
-                "[DLL] Load-SysOptDll helper unificado — un punto de carga para las 5 DLLs"
+                "[DLL] Load-SysOptDll helper unificado — un punto de carga para las 5 DLLs",
+                "[DLL] SysOpt.Optimizer.dll — 15 tareas de optimización en C#",
+                "[DLL] SysOpt.StartupManager.dll — gestión de inicio de Windows",
+                "[DLL] SysOpt.Diagnostics.dll — motor de diagnóstico del sistema",
+                "[THEME] 33 temas preinstalados (expansión de 11 a 33)",
+                "[UI] Toggle switch Win11 en ventana de opciones",
+                "[DBG] Auditoría y carga de 8 DLLs en debug/splash",
+                "[OPT] PS1 reducido de 6924 a ~6241 líneas (-9.9%)",
+                "[OPT] Compactación: $taskMap, reflexión $diagHash"
             )
         }
         "v3.1.0" = @{
@@ -62,13 +70,6 @@ $script:AppNotes   = @{
                 "[TASKPOOL] Panel de tareas async estilo torrent"
             )
         }
-        "v2.4.0" = @{
-            Titulo = "FIFO Streaming Anti-RAM-Drain"
-            Items  = @(
-                "[FIFO] Guardado/carga streaming con ConcurrentQueue — ahorro −50% a −200% RAM pico",
-                "[FIFO] Terminación limpia garantizada: GC + LOH compaction en bloque finally"
-            )
-        }
     }
 }
 
@@ -99,7 +100,7 @@ Set-SplashProgress 10 "Cargando ensamblados .NET..."
 
 # =============================================================================
 # CARGA DE DLL EXTERNAS  —  todas en .\libs\  relativas a PSScriptRoot
-# Orden: MemoryHelper → DiskEngine → Core (CTK+DAL+i18n) → ThemeEngine → WseTrim → Optimizer
+# Orden: MemoryHelper → DiskEngine → Core (CTK+DAL+i18n) → ThemeEngine → WseTrim → Optimizer → StartupManager → Diagnostics
 # compile-dlls.ps1 en .\libs\ recompila todas si modificas los .cs
 # =============================================================================
 
@@ -153,39 +154,45 @@ Load-SysOptDll -DllPath (Join-Path $script:_libsDir "SysOpt.MemoryHelper.dll") `
 
 # ── [DLL 2/7] DiskEngine — modelos y escaner paralelo del Explorador ──────────
 # Contiene: DiskItem_v211, DiskItemToggle_v230, ScanCtl211, PScanner211
-Set-SplashProgress 18 "Cargando DiskEngine..."
+Set-SplashProgress 17 "Cargando DiskEngine..."
 Load-SysOptDll -DllPath (Join-Path $script:_libsDir "SysOpt.DiskEngine.dll") `
                -GuardType "DiskItem_v211" -Label "DiskEngine" -Hard
 
 # ── [DLL 3/7] Core — LangEngine + XamlLoader + CTK + DAL + AgentBus ──────────
 # v3.2.0: añade ScanTokenManager, SystemDataCollector, modelos de datos y AgentBus
-Set-SplashProgress 26 "Cargando Core (CTK + DAL)..."
+Set-SplashProgress 24 "Cargando Core (CTK + DAL)..."
 Load-SysOptDll -DllPath (Join-Path $script:_libsDir "SysOpt.Core.dll") `
                -GuardType "LangEngine" -Label "Core" -Hard
 
 # ── [DLL 4/7] ThemeEngine — parser de archivos .theme ────────────────────────
-Set-SplashProgress 34 "Cargando ThemeEngine..."
+Set-SplashProgress 31 "Cargando ThemeEngine..."
 Load-SysOptDll -DllPath (Join-Path $script:_libsDir "SysOpt.ThemeEngine.dll") `
                -GuardType "ThemeEngine" -Label "ThemeEngine" -Hard
 
 # ── [DLL 5/7] WseTrim — SetProcessWorkingSetSize para trim de Working Set ─────
 # Se carga aqui (inicio) en lugar de bajo demanda para errores tempranos visibles
-Set-SplashProgress 42 "Cargando WseTrim..."
+Set-SplashProgress 38 "Cargando WseTrim..."
 Load-SysOptDll -DllPath (Join-Path $script:_libsDir "SysOpt.WseTrim.dll") `
                -GuardType "WseTrim" -Label "WseTrim"
 # WseTrim es no-Hard: si falta el DLL la app sigue funcionando sin trim de WS
 
 # ── [DLL 6/7] Optimizer — OptimizerEngine + WUCacheManager + ProcessManager ──
 # Contiene: OptimizeOptions, OptimizeProgress, OptimizerEngine, WUCacheManager, ProcessManager
-Set-SplashProgress 50 "Cargando Optimizer..."
+Set-SplashProgress 45 "Cargando Optimizer..."
 Load-SysOptDll -DllPath (Join-Path $script:_libsDir "SysOpt.Optimizer.dll") `
                -GuardType "SysOpt.Optimizer.OptimizerEngine" -Label "Optimizer" 
 
 # ── [DLL 7/7] StartupManager — motor de gestión de programas de inicio ──────
 # Contiene: StartupEntry, ApplyResult, StartupEngine
-Set-SplashProgress 58 "Cargando StartupManager..."
+Set-SplashProgress 52 "Cargando StartupManager..."
 Load-SysOptDll -DllPath (Join-Path $script:_libsDir "SysOpt.StartupManager.dll") `
                -GuardType "SysOpt.StartupManager.StartupEngine" -Label "StartupManager"
+
+# ── [DLL 8/8] Diagnostics — DiagnosticsEngine (análisis del sistema y puntuación) ──
+# Contiene: DiagInput, DiagItem, DiagResult, DiagnosticsEngine
+Set-SplashProgress 59 "Cargando Diagnostics..."
+Load-SysOptDll -DllPath (Join-Path $script:_libsDir "SysOpt.Diagnostics.dll") `
+               -GuardType "SysOpt.Diagnostics.DiagnosticsEngine" -Label "Diagnostics"
 
 # ── Inicializar CTK global ────────────────────────────────────────────────────
 # ScanTokenManager reemplaza el flag booleano ScanCtl211.Stop para cancelacion
@@ -869,7 +876,8 @@ try {
         @{ Guard = 'ThemeEngine';        Dll = 'SysOpt.ThemeEngine.dll'   },
         @{ Guard = 'WseTrim';            Dll = 'SysOpt.WseTrim.dll'       },
         @{ Guard = 'SysOpt.Optimizer.OptimizerEngine'; Dll = 'SysOpt.Optimizer.dll' },
-        @{ Guard = 'SysOpt.StartupManager.StartupEngine'; Dll = 'SysOpt.StartupManager.dll' }
+        @{ Guard = 'SysOpt.StartupManager.StartupEngine'; Dll = 'SysOpt.StartupManager.dll' },
+        @{ Guard = 'SysOpt.Diagnostics.DiagnosticsEngine'; Dll = 'SysOpt.Diagnostics.dll' }
     )
 
     Write-Log "── Auditoría de ensamblados ──────────────────────────────" -Level "DBG" -NoUI
@@ -4658,7 +4666,7 @@ $btnDiskReport.Add_Click({
                 -replace '{{REPORT_DATE}}',       $reportDate `
                 -replace '{{REPORT_DATE_LONG}}',  $dateLong `
                 -replace '{{SCAN_TIME}}',         $dateLong `
-                -replace '{{APP_VERSION}}',       "v3.0.0 (Dev)" `
+                -replace '{{APP_VERSION}}',       "v3.2.0 (Dev)" `
                 -replace '{{TOTAL_SIZE}}',        $totalStr `
                 -replace '{{TOTAL_FOLDERS}}',     $totalFolders `
                 -replace '{{TOTAL_FILES}}',       $totalFiles `
@@ -5483,7 +5491,7 @@ function Show-StartupManager {
     $titleBar.Add_MouseLeftButtonDown({ $script:_startupWin.DragMove() })
 
     # ── Obtener entradas de inicio vía DLL ──────────────────────────────────────
-    $rawEntries = [SysOpt.StartupManager.StartupEngine]::GetAll()
+    $rawEntries = [SysOpt.StartupManager.StartupEngine]::GetEntries()
     $startupTable = New-Object System.Collections.ObjectModel.ObservableCollection[object]
     foreach ($e in $rawEntries) {
         $startupTable.Add([PSCustomObject]@{
@@ -5505,7 +5513,7 @@ function Show-StartupManager {
             $se = New-Object SysOpt.StartupManager.StartupEntry
             $se.Name     = $item.OriginalName
             $se.Command  = $item.Command
-            $se.Location = $item.Location
+            $se.RegPath  = $item.Location
             $se.Source   = $item.Source
             $se.Enabled  = $item.Enabled
             $entryList.Add($se)
@@ -5529,6 +5537,79 @@ function Show-StartupManager {
 # ─────────────────────────────────────────────────────────────────────────────
 # [N9] Ventana de Informe de Diagnóstico (resultado del Análisis Dry Run)
 # ─────────────────────────────────────────────────────────────────────────────
+
+# ── Helper WPF: renderizar fila de diagnóstico ──────────────────────────────
+function Add-DiagRow {
+    param(
+        [System.Windows.Window]$Window,
+        [System.Windows.Controls.StackPanel]$Panel,
+        [string]$Status, [string]$Label, [string]$Detail, [string]$Action = ""
+    )
+    $styleKey = switch ($Status) {
+        "OK"   { "GoodRow" }
+        "WARN" { "WarnRow" }
+        "CRIT" { "CritRow" }
+        default{ "InfoRow" }
+    }
+    $border = New-Object System.Windows.Controls.Border
+    $border.Style = $Window.Resources[$styleKey]
+
+    $grid = New-Object System.Windows.Controls.Grid
+    $c0 = New-Object System.Windows.Controls.ColumnDefinition; $c0.Width = [System.Windows.GridLength]::new(38)
+    $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+    $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::Auto
+    $grid.ColumnDefinitions.Add($c0)
+    $grid.ColumnDefinitions.Add($c1)
+    $grid.ColumnDefinitions.Add($c2)
+
+    $ico = New-Object System.Windows.Controls.TextBlock
+    $ico.Text = switch ($Status) { "OK" { "✅" } "WARN" { "⚠️" } "CRIT" { "🔴" } default { "ℹ️" } }
+    $ico.FontSize = 16; $ico.VerticalAlignment = "Center"
+    [System.Windows.Controls.Grid]::SetColumn($ico, 0)
+    [void]$grid.Children.Add($ico)
+
+    $sp = New-Object System.Windows.Controls.StackPanel
+    $sp.VerticalAlignment = "Center"
+    [System.Windows.Controls.Grid]::SetColumn($sp, 1)
+
+    $lbl = New-Object System.Windows.Controls.TextBlock
+    $lbl.Text       = $Label
+    $lbl.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI")
+    $lbl.FontSize   = 12
+    $lbl.FontWeight = [System.Windows.FontWeights]::SemiBold
+    $lblColor = switch ($Status) { "OK" { "#4AE896" } "WARN" { "#FFB547" } "CRIT" { "#FF6B84" } default { "#7BA8E0" } }
+    $lbl.Foreground = New-Object System.Windows.Media.SolidColorBrush(
+        [System.Windows.Media.ColorConverter]::ConvertFromString($lblColor))
+    [void]$sp.Children.Add($lbl)
+
+    if ($Detail) {
+        $det = New-Object System.Windows.Controls.TextBlock
+        $det.Text       = $Detail
+        $det.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI")
+        $det.FontSize   = 10
+        $det.Foreground = New-Object System.Windows.Media.SolidColorBrush(
+            [System.Windows.Media.ColorConverter]::ConvertFromString((Get-TC 'TextSecondary' '#9BA4C0')))
+        $det.TextWrapping = "Wrap"
+        [void]$sp.Children.Add($det)
+    }
+    [void]$grid.Children.Add($sp)
+
+    if ($Action) {
+        $act = New-Object System.Windows.Controls.TextBlock
+        $act.Text       = $Action
+        $act.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI")
+        $act.FontSize   = 9
+        $act.Foreground = New-Object System.Windows.Media.SolidColorBrush(
+            [System.Windows.Media.ColorConverter]::ConvertFromString((Get-TC 'AccentBlue' '#5BA3FF')))
+        $act.VerticalAlignment = "Center"; $act.TextAlignment = "Right"; $act.Width = 160
+        [System.Windows.Controls.Grid]::SetColumn($act, 2)
+        [void]$grid.Children.Add($act)
+    }
+
+    $border.Child = $grid
+    [void]$Panel.Children.Add($border)
+}
+
 function Show-DiagnosticReport {
     param([hashtable]$Report)
 
@@ -5544,265 +5625,41 @@ function Show-DiagnosticReport {
     $btnExp   = $dWindow.FindName("btnExportDiag")
     $btnClose = $dWindow.FindName("btnCloseDiag")
 
-    # ── Helper: añadir fila al panel ────────────────────────────────────────
-    function Add-DiagSection {
-        param([string]$Title, [string]$Icon)
-        $tb = New-Object System.Windows.Controls.TextBlock
-        $tb.Style = $dWindow.Resources["SectionHeader"]
-        $tb.Text  = "$Icon  $Title"
-        [void]$dPanel.Children.Add($tb)
+    # ── Construir DiagInput desde hashtable ──────────────────────────────────
+    $input = New-Object SysOpt.Diagnostics.DiagInput
+    foreach ($key in $Report.Keys) {
+        try {
+            $prop = $input.GetType().GetProperty($key)
+            if ($prop) { $prop.SetValue($input, [double]$Report[$key], $null) }
+        } catch { }
     }
 
-    function Add-DiagRow {
-        param([string]$Status, [string]$Label, [string]$Detail, [string]$Action = "")
-        $styleKey = switch ($Status) {
-            "OK"   { "GoodRow" }
-            "WARN" { "WarnRow" }
-            "CRIT" { "CritRow" }
-            default{ "InfoRow" }
+    # ── Ejecutar motor de diagnóstico vía DLL ────────────────────────────────
+    $result = [SysOpt.Diagnostics.DiagnosticsEngine]::Analyze($input)
+
+    # ── Renderizar items en el panel WPF ─────────────────────────────────────
+    foreach ($item in $result.Items) {
+        if ($item.IsSection) {
+            $tb = New-Object System.Windows.Controls.TextBlock
+            $tb.Style = $dWindow.Resources["SectionHeader"]
+            $tb.Text  = "$($item.SectionIcon)  $($item.SectionTitle)"
+            [void]$dPanel.Children.Add($tb)
+        } else {
+            Add-DiagRow -Window $dWindow -Panel $dPanel `
+                -Status $item.Status -Label $item.Label `
+                -Detail $item.Detail -Action $item.Action
         }
-        $border = New-Object System.Windows.Controls.Border
-        $border.Style = $dWindow.Resources[$styleKey]
-
-        $grid = New-Object System.Windows.Controls.Grid
-        $c0 = New-Object System.Windows.Controls.ColumnDefinition; $c0.Width = [System.Windows.GridLength]::new(38)
-        $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
-        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::Auto
-        $grid.ColumnDefinitions.Add($c0)
-        $grid.ColumnDefinitions.Add($c1)
-        $grid.ColumnDefinitions.Add($c2)
-
-        # Icono de estado
-        $ico = New-Object System.Windows.Controls.TextBlock
-        $ico.Text = switch ($Status) {
-            "OK"   { "✅" }
-            "WARN" { "⚠️" }
-            "CRIT" { "🔴" }
-            default{ "ℹ️" }
-        }
-        $ico.FontSize = 16
-        $ico.VerticalAlignment = "Center"
-        [System.Windows.Controls.Grid]::SetColumn($ico, 0)
-        [void]$grid.Children.Add($ico)
-
-        # Texto principal
-        $sp = New-Object System.Windows.Controls.StackPanel
-        $sp.VerticalAlignment = "Center"
-        [System.Windows.Controls.Grid]::SetColumn($sp, 1)
-
-        $lbl = New-Object System.Windows.Controls.TextBlock
-        $lbl.Text       = $Label
-        $lbl.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI")
-        $lbl.FontSize   = 12
-        $lbl.FontWeight = [System.Windows.FontWeights]::SemiBold
-        $lblColor = switch ($Status) {
-            "OK"    { "#4AE896" }
-            "WARN"  { "#FFB547" }
-            "CRIT"  { "#FF6B84" }
-            default { "#7BA8E0" }
-        }
-        $lbl.Foreground = New-Object System.Windows.Media.SolidColorBrush(
-            [System.Windows.Media.ColorConverter]::ConvertFromString($lblColor))
-        [void]$sp.Children.Add($lbl)
-
-        if ($Detail) {
-            $det = New-Object System.Windows.Controls.TextBlock
-            $det.Text       = $Detail
-            $det.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI")
-            $det.FontSize   = 10
-            $det.Foreground = New-Object System.Windows.Media.SolidColorBrush(
-                [System.Windows.Media.ColorConverter]::ConvertFromString((Get-TC 'TextSecondary' '#9BA4C0')))
-            $det.TextWrapping = "Wrap"
-            [void]$sp.Children.Add($det)
-        }
-        [void]$grid.Children.Add($sp)
-
-        # Acción recomendada
-        if ($Action) {
-            $act = New-Object System.Windows.Controls.TextBlock
-            $act.Text       = $Action
-            $act.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI")
-            $act.FontSize   = 9
-            $act.Foreground = New-Object System.Windows.Media.SolidColorBrush(
-                [System.Windows.Media.ColorConverter]::ConvertFromString((Get-TC 'AccentBlue' '#5BA3FF')))
-            $act.VerticalAlignment = "Center"
-            $act.TextAlignment = "Right"
-            $act.Width = 160
-            [System.Windows.Controls.Grid]::SetColumn($act, 2)
-            [void]$grid.Children.Add($act)
-        }
-
-        $border.Child = $grid
-        [void]$dPanel.Children.Add($border)
     }
 
-    # ── Calcular y mostrar resultados ────────────────────────────────────────
-    $points     = 100
-    $deductions = 0
-    $critCount  = 0
-    $warnCount  = 0
-    $exportLines = [System.Collections.Generic.List[string]]::new()
-    $exportLines.Add("INFORME DE DIAGNÓSTICO DEL SISTEMA — SysOpt v1.0")
-    $exportLines.Add("Fecha: $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')")
-    $exportLines.Add("")
-
-    # ── SECCIÓN: ALMACENAMIENTO ──────────────────────────────────────────────
-    Add-DiagSection "ALMACENAMIENTO" "🗄️"
-    $exportLines.Add("=== ALMACENAMIENTO ===")
-
-    $tempTotal = $(if ($null -ne $Report.TempFilesMB) { [double]$Report.TempFilesMB } else { 0.0 }) + $(if ($null -ne $Report.UserTempMB) { [double]$Report.UserTempMB } else { 0.0 })
-    if ($tempTotal -gt 1000) {
-        Add-DiagRow "CRIT" "Archivos temporales acumulados" "$([math]::Round($tempTotal,0)) MB en carpetas Temp" "Limpiar Temp Windows + Usuario"
-        $deductions += 15; $critCount++
-        $exportLines.Add("[CRÍTICO] Archivos temporales: $([math]::Round($tempTotal,0)) MB — Limpiar Temp Windows + Usuario")
-    } elseif ($tempTotal -gt 200) {
-        Add-DiagRow "WARN" "Archivos temporales moderados" "$([math]::Round($tempTotal,0)) MB — recomendable limpiar" "Limpiar carpetas Temp"
-        $deductions += 7; $warnCount++
-        $exportLines.Add("[AVISO] Archivos temporales: $([math]::Round($tempTotal,0)) MB — recomendable limpiar")
-    } else {
-        Add-DiagRow "OK" "Carpetas temporales limpias" "$([math]::Round($tempTotal,1)) MB — nivel óptimo"
-        $exportLines.Add("[OK] Archivos temporales: $([math]::Round($tempTotal,1)) MB")
-    }
-
-    $recycleSize = $(if ($null -ne $Report.RecycleBinMB) { [double]$Report.RecycleBinMB } else { 0.0 })
-    if ($recycleSize -gt 500) {
-        Add-DiagRow "WARN" "Papelera de reciclaje llena" "$([math]::Round($recycleSize,0)) MB ocupados" "Vaciar papelera"
-        $deductions += 5; $warnCount++
-        $exportLines.Add("[AVISO] Papelera: $([math]::Round($recycleSize,0)) MB — vaciar recomendado")
-    } elseif ($recycleSize -gt 0) {
-        Add-DiagRow "INFO" "Papelera con contenido" "$([math]::Round($recycleSize,1)) MB"
-        $exportLines.Add("[INFO] Papelera: $([math]::Round($recycleSize,1)) MB")
-    } else {
-        Add-DiagRow "OK" "Papelera vacía" "Sin archivos pendientes de eliminar"
-        $exportLines.Add("[OK] Papelera vacía")
-    }
-
-    $wuSize = $(if ($null -ne $Report.WUCacheMB) { [double]$Report.WUCacheMB } else { 0.0 })
-    if ($wuSize -gt 2000) {
-        Add-DiagRow "WARN" "Caché de Windows Update grande" "$([math]::Round($wuSize,0)) MB en SoftwareDistribution" "Limpiar WU Cache"
-        $deductions += 8; $warnCount++
-        $exportLines.Add("[AVISO] WU Cache: $([math]::Round($wuSize,0)) MB — limpiar recomendado")
-    } elseif ($wuSize -gt 0) {
-        Add-DiagRow "INFO" "Caché Windows Update presente" "$([math]::Round($wuSize,1)) MB"
-        $exportLines.Add("[INFO] WU Cache: $([math]::Round($wuSize,1)) MB")
-    } else {
-        Add-DiagRow "OK" "Caché de Windows Update limpia" "Sin residuos de actualización"
-        $exportLines.Add("[OK] WU Cache limpia")
-    }
-
-    # ── SECCIÓN: MEMORIA Y RENDIMIENTO ──────────────────────────────────────
-    Add-DiagSection "MEMORIA Y RENDIMIENTO" "💾"
-    $exportLines.Add("")
-    $exportLines.Add("=== MEMORIA Y RENDIMIENTO ===")
-
-    $ramUsedPct = $(if ($null -ne $Report.RamUsedPct) { [double]$Report.RamUsedPct } else { 0.0 })
-    if ($ramUsedPct -gt 85) {
-        Add-DiagRow "CRIT" "Memoria RAM crítica" "$ramUsedPct% en uso — riesgo de lentitud severa" "Liberar RAM urgente"
-        $deductions += 20; $critCount++
-        $exportLines.Add("[CRÍTICO] RAM: $ramUsedPct% en uso — liberar urgente")
-    } elseif ($ramUsedPct -gt 70) {
-        Add-DiagRow "WARN" "Uso de RAM elevado" "$ramUsedPct% en uso" "Liberar RAM recomendado"
-        $deductions += 10; $warnCount++
-        $exportLines.Add("[AVISO] RAM: $ramUsedPct% en uso — liberar recomendado")
-    } else {
-        Add-DiagRow "OK" "Memoria RAM en niveles normales" "$ramUsedPct% en uso"
-        $exportLines.Add("[OK] RAM: $ramUsedPct% en uso")
-    }
-
-    $diskUsedPct = $(if ($null -ne $Report.DiskCUsedPct) { [double]$Report.DiskCUsedPct } else { 0.0 })
-    if ($diskUsedPct -gt 90) {
-        Add-DiagRow "CRIT" "Disco C: casi lleno" "$diskUsedPct% ocupado — rendimiento muy degradado" "Liberar espacio urgente"
-        $deductions += 20; $critCount++
-        $exportLines.Add("[CRÍTICO] Disco C: $diskUsedPct% — liberar espacio urgente")
-    } elseif ($diskUsedPct -gt 75) {
-        Add-DiagRow "WARN" "Disco C: con poco espacio libre" "$diskUsedPct% ocupado" "Limpiar archivos"
-        $deductions += 10; $warnCount++
-        $exportLines.Add("[AVISO] Disco C: $diskUsedPct% — limpiar recomendado")
-    } else {
-        Add-DiagRow "OK" "Espacio en disco C: saludable" "$diskUsedPct% ocupado"
-        $exportLines.Add("[OK] Disco C: $diskUsedPct% ocupado")
-    }
-
-    # ── SECCIÓN: RED Y NAVEGADORES ───────────────────────────────────────────
-    Add-DiagSection "RED Y NAVEGADORES" "🌐"
-    $exportLines.Add("")
-    $exportLines.Add("=== RED Y NAVEGADORES ===")
-
-    $dnsCount = $(if ($null -ne $Report.DnsEntries) { [double]$Report.DnsEntries } else { 0.0 })
-    if ($dnsCount -gt 500) {
-        Add-DiagRow "WARN" "Caché DNS muy grande" "$dnsCount entradas — puede ralentizar resolución" "Limpiar caché DNS"
-        $deductions += 5; $warnCount++
-        $exportLines.Add("[AVISO] DNS: $dnsCount entradas — limpiar recomendado")
-    } else {
-        Add-DiagRow "OK" "Caché DNS normal" "$dnsCount entradas"
-        $exportLines.Add("[OK] DNS: $dnsCount entradas")
-    }
-
-    $browserMB = $(if ($null -ne $Report.BrowserCacheMB) { [double]$Report.BrowserCacheMB } else { 0.0 })
-    if ($browserMB -gt 1000) {
-        Add-DiagRow "WARN" "Caché de navegadores muy grande" "$([math]::Round($browserMB,0)) MB — recomendable limpiar" "Limpiar caché navegadores"
-        $deductions += 5; $warnCount++
-        $exportLines.Add("[AVISO] Caché navegadores: $([math]::Round($browserMB,0)) MB")
-    } elseif ($browserMB -gt 200) {
-        Add-DiagRow "INFO" "Caché de navegadores presente" "$([math]::Round($browserMB,1)) MB"
-        $exportLines.Add("[INFO] Caché navegadores: $([math]::Round($browserMB,1)) MB")
-    } else {
-        Add-DiagRow "OK" "Caché de navegadores limpia" "$([math]::Round($browserMB,1)) MB"
-        $exportLines.Add("[OK] Caché navegadores: $([math]::Round($browserMB,1)) MB")
-    }
-
-    # ── SECCIÓN: REGISTRO DE WINDOWS ────────────────────────────────────────
-    Add-DiagSection "REGISTRO DE WINDOWS" "📋"
-    $exportLines.Add("")
-    $exportLines.Add("=== REGISTRO DE WINDOWS ===")
-
-    $orphaned = $(if ($null -ne $Report.OrphanedKeys) { [double]$Report.OrphanedKeys } else { 0.0 })
-    if ($orphaned -gt 20) {
-        Add-DiagRow "WARN" "Claves huérfanas en el registro" "$orphaned claves de programas desinstalados" "Limpiar registro"
-        $deductions += 5; $warnCount++
-        $exportLines.Add("[AVISO] Registro: $orphaned claves huérfanas")
-    } elseif ($orphaned -gt 0) {
-        Add-DiagRow "INFO" "Algunas claves huérfanas" "$orphaned claves — impacto mínimo"
-        $exportLines.Add("[INFO] Registro: $orphaned claves huérfanas")
-    } else {
-        Add-DiagRow "OK" "Registro sin claves huérfanas" "No se detectaron entradas obsoletas"
-        $exportLines.Add("[OK] Registro limpio")
-    }
-
-    # ── SECCIÓN: EVENT VIEWER LOGS ────────────────────────────────────────────
-    Add-DiagSection "REGISTROS DE EVENTOS" "📰"
-    $exportLines.Add("")
-    $exportLines.Add("=== REGISTROS DE EVENTOS ===")
-
-    $eventSizeMB = $(if ($null -ne $Report.EventLogsMB) { [double]$Report.EventLogsMB } else { 0.0 })
-    if ($eventSizeMB -gt 100) {
-        Add-DiagRow "WARN" "Logs de eventos grandes" "$([math]::Round($eventSizeMB,1)) MB en System+Application+Setup" "Limpiar Event Logs"
-        $deductions += 3; $warnCount++
-        $exportLines.Add("[AVISO] Event Logs: $([math]::Round($eventSizeMB,1)) MB")
-    } else {
-        Add-DiagRow "OK" "Logs de eventos dentro de límites" "$([math]::Round($eventSizeMB,1)) MB"
-        $exportLines.Add("[OK] Event Logs: $([math]::Round($eventSizeMB,1)) MB")
-    }
-
-    # ── PUNTUACIÓN FINAL ─────────────────────────────────────────────────────
-    $finalScore = [math]::Max(0, $points - $deductions)
-    $dScore.Text  = "$finalScore"
-    $scoreColor = if ($finalScore -ge 80) { "#4AE896" } elseif ($finalScore -ge 55) { "#FFB547" } else { "#FF6B84" }
+    # ── Puntuación ───────────────────────────────────────────────────────────
+    $dScore.Text  = "$($result.Score)"
     $dScore.Foreground = New-Object System.Windows.Media.SolidColorBrush(
-        [System.Windows.Media.ColorConverter]::ConvertFromString($scoreColor))
-    $dLabel.Text = if ($finalScore -ge 80) { "Sistema en buen estado" } `
-                   elseif ($finalScore -ge 55) { "Mantenimiento recomendado" } `
-                   else { "Atención urgente" }
-
-    $dSub.Text = "$(Get-Date -Format 'dd/MM/yyyy HH:mm')  ·  $critCount crítico(s)  ·  $warnCount aviso(s)"
-
-    $exportLines.Add("")
-    $exportLines.Add("=== RESUMEN ===")
-    $exportLines.Add("Puntuación: $finalScore / 100")
-    $exportLines.Add("Críticos: $critCount  |  Avisos: $warnCount")
-    $exportLines.Add("Estado: $($dLabel.Text)")
+        [System.Windows.Media.ColorConverter]::ConvertFromString($result.ScoreColor))
+    $dLabel.Text = $result.ScoreLabel
+    $dSub.Text = "$(Get-Date -Format 'dd/MM/yyyy HH:mm')  ·  $($result.CritCount) crítico(s)  ·  $($result.WarnCount) aviso(s)"
 
     # ── Exportar informe ─────────────────────────────────────────────────────
+    $exportLines = $result.ExportLines
     $btnExp.Add_Click({
         $sd = New-Object System.Windows.Forms.SaveFileDialog
         try {
@@ -5843,6 +5700,7 @@ $OptimizationScript = {
     Add-Type -Path (Join-Path $dllDir "SysOpt.DiskEngine.dll")
     Add-Type -Path (Join-Path $dllDir "SysOpt.MemoryHelper.dll")
     Add-Type -Path (Join-Path $dllDir "SysOpt.Optimizer.dll")
+    Add-Type -Path (Join-Path $dllDir "SysOpt.Diagnostics.dll")
 
     # ── Mapear hashtable $options → OptimizeOptions DTO ──────────────────
     $opts = New-Object SysOpt.Optimizer.OptimizeOptions
@@ -5888,17 +5746,9 @@ $OptimizationScript = {
     # ── Publicar datos diagnósticos al hilo principal ────────────────────
     if ($null -ne $DiagReportRef) {
         try {
-            $diagHash = @{
-                TempFilesMB    = $result.DiagData.TempFilesMB
-                UserTempMB     = $result.DiagData.UserTempMB
-                RecycleBinMB   = $result.DiagData.RecycleBinMB
-                WUCacheMB      = $result.DiagData.WUCacheMB
-                BrowserCacheMB = $result.DiagData.BrowserCacheMB
-                DnsEntries     = $result.DiagData.DnsEntries
-                OrphanedKeys   = $result.DiagData.OrphanedKeys
-                EventLogsMB    = $result.DiagData.EventLogsMB
-                RamUsedPct     = $result.DiagData.RamUsedPct
-                DiskCUsedPct   = $result.DiagData.DiskCUsedPct
+            $diagHash = @{}
+            foreach ($p in $result.DiagData.GetType().GetProperties()) {
+                $diagHash[$p.Name] = $p.GetValue($result.DiagData, $null)
             }
             $DiagReportRef.Value = $diagHash
         } catch { }
@@ -5971,22 +5821,25 @@ function Start-Optimization {
     }
 
     # Contar tareas seleccionadas
-    $selectedTasks = @()
-    if ($chkOptimizeDisks.IsChecked)  { $selectedTasks += "Optimizar discos" }
-    if ($chkRecycleBin.IsChecked)     { $selectedTasks += "Vaciar papelera" }
-    if ($chkTempFiles.IsChecked)      { $selectedTasks += "Temp Windows" }
-    if ($chkUserTemp.IsChecked)       { $selectedTasks += "Temp Usuario" }
-    if ($chkWUCache.IsChecked)        { $selectedTasks += "WU Cache" }
-    if ($chkChkdsk.IsChecked)         { $selectedTasks += "CHKDSK" }
-    if ($chkClearMemory.IsChecked)    { $selectedTasks += "Liberar RAM" }
-    if ($chkCloseProcesses.IsChecked) { $selectedTasks += "Cerrar procesos" }
-    if ($chkDNSCache.IsChecked)       { $selectedTasks += "DNS" }
-    if ($chkBrowserCache.IsChecked)   { $selectedTasks += "Navegadores" }
-    if ($chkBackupRegistry.IsChecked) { $selectedTasks += "Backup registro" }
-    if ($chkCleanRegistry.IsChecked)  { $selectedTasks += "Limpiar registro" }
-    if ($chkSFC.IsChecked)            { $selectedTasks += "SFC" }
-    if ($chkDISM.IsChecked)           { $selectedTasks += "DISM" }
-    if ($chkEventLogs.IsChecked)      { $selectedTasks += "Event Logs" }
+    # Mapa checkbox → (Nombre tarea, Clave options)
+    $taskMap = @(
+        @($chkOptimizeDisks,  "Optimizar discos", "OptimizeDisks"),
+        @($chkRecycleBin,     "Vaciar papelera",  "RecycleBin"),
+        @($chkTempFiles,      "Temp Windows",     "TempFiles"),
+        @($chkUserTemp,       "Temp Usuario",     "UserTemp"),
+        @($chkWUCache,        "WU Cache",         "WUCache"),
+        @($chkChkdsk,         "CHKDSK",           "Chkdsk"),
+        @($chkClearMemory,    "Liberar RAM",      "ClearMemory"),
+        @($chkCloseProcesses, "Cerrar procesos",  "CloseProcesses"),
+        @($chkDNSCache,       "DNS",              "DNSCache"),
+        @($chkBrowserCache,   "Navegadores",      "BrowserCache"),
+        @($chkBackupRegistry, "Backup registro",  "BackupRegistry"),
+        @($chkCleanRegistry,  "Limpiar registro", "CleanRegistry"),
+        @($chkSFC,            "SFC",              "SFC"),
+        @($chkDISM,           "DISM",             "DISM"),
+        @($chkEventLogs,      "Event Logs",       "EventLogs")
+    )
+    $selectedTasks = @($taskMap | Where-Object { $_[0].IsChecked } | ForEach-Object { $_[1] })
 
     # [N8] ShowStartup se maneja en el hilo principal antes del runspace
     if ($chkShowStartup.IsChecked) {
@@ -6031,26 +5884,8 @@ function Start-Optimization {
     $script:CancelSource  = New-Object System.Threading.CancellationTokenSource
     $script:WasCancelled  = $false
 
-    $options = @{
-        'DryRun'         = $isDryRun
-        'OptimizeDisks'  = $chkOptimizeDisks.IsChecked
-        'RecycleBin'     = $chkRecycleBin.IsChecked
-        'TempFiles'      = $chkTempFiles.IsChecked
-        'UserTemp'       = $chkUserTemp.IsChecked
-        'WUCache'        = $chkWUCache.IsChecked
-        'Chkdsk'         = $chkChkdsk.IsChecked
-        'ClearMemory'    = $chkClearMemory.IsChecked
-        'CloseProcesses' = $chkCloseProcesses.IsChecked
-        'DNSCache'       = $chkDNSCache.IsChecked
-        'BrowserCache'   = $chkBrowserCache.IsChecked
-        'BackupRegistry' = $chkBackupRegistry.IsChecked
-        'CleanRegistry'  = $chkCleanRegistry.IsChecked
-        'SFC'            = $chkSFC.IsChecked
-        'DISM'           = $chkDISM.IsChecked
-        'EventLogs'      = $chkEventLogs.IsChecked
-        'AutoRestart'    = $chkAutoRestart.IsChecked
-        '_DllDir'        = "$PSScriptRoot\libs"   # Ruta a las DLLs para el runspace
-    }
+    $options = @{ 'DryRun' = $isDryRun; 'AutoRestart' = $chkAutoRestart.IsChecked; '_DllDir' = "$PSScriptRoot\libs" }
+    foreach ($t in $taskMap) { $options[$t[2]] = $t[0].IsChecked }
 
 
     $runspace = [runspacefactory]::CreateRunspace()

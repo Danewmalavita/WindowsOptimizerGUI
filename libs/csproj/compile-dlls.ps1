@@ -116,12 +116,16 @@ $extraRefs = @{
         "System.dll",
         "System.Core.dll"
     )
+    "SysOpt.Diagnostics.cs" = @(
+        "System.dll",
+        "System.Core.dll"
+    )
 }
 
 # Mapa: nombre del .cs -> DLLs locales del proyecto que necesita como /r:
 # Estas DLLs DEBEN compilarse antes que la que las referencia.
 # El orden alfabetico de los .cs lo garantiza actualmente:
-#   DiskEngine -> MemoryHelper -> SysOpt.Core -> SysOpt.Optimizer -> SysOpt.StartupManager -> SysOpt.ThemeEngine -> WseTrim
+#   DiskEngine -> MemoryHelper -> SysOpt.Core -> SysOpt.Diagnostics -> SysOpt.Optimizer -> SysOpt.StartupManager -> SysOpt.ThemeEngine -> WseTrim
 $localRefs = @{
     "SysOpt.Optimizer.cs" = @(
         "SysOpt.Core.dll",                # CleanupEngine, CleanupResult, SystemDataCollector, RamSnapshot
@@ -140,6 +144,7 @@ $outputNames = @{
     "SysOpt.ThemeEngine.cs" = "SysOpt.ThemeEngine.dll"
     "SysOpt.Optimizer.cs"   = "SysOpt.Optimizer.dll"
     "SysOpt.StartupManager.cs" = "SysOpt.StartupManager.dll"
+    "SysOpt.Diagnostics.cs"    = "SysOpt.Diagnostics.dll"
 }
 
 # ── Auto-descubrir todos los .cs (excluir archivos _old / _bak / Copy) ────────

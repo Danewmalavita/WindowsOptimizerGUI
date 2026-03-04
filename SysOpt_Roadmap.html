@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>SysOpt v3.1.0 — Hoja de Ruta</title>
+<title>SysOpt v3.2.0 — Hoja de Ruta</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <style>
@@ -704,7 +704,7 @@
 
   <!-- ── Header ── -->
   <header>
-    <div class="version-badge">SysOpt v3.1.0 (Dev) · Estable base v2.5.0 · Hoja de Ruta hacia v3.x</div>
+    <div class="version-badge">SysOpt v3.2.0 (Dev) · Estable base v2.5.0 · Hoja de Ruta hacia v3.x</div>
     <h1><span class="accent">SYS</span><span class="accent2">OPT</span><br>Plan de Estabilidad y Mejora</h1>
     <p class="subtitle">Análisis de bugs corregidos, mejoras implementadas y vías de evolución hacia v3.x — plataforma modular con temas visuales, multiidioma y arquitectura limpia.</p>
   </header>
@@ -713,9 +713,9 @@
   <div class="dev-banner">
     <div class="dev-banner-icon">🚀</div>
     <div>
-      <div class="dev-banner-title">Estado actual — v3.1.0 (Dev) en desarrollo / Base estable v2.5.0</div>
+      <div class="dev-banner-title">Estado actual — v3.2.0 (Dev) en desarrollo / Base estable v2.5.0</div>
       <div class="dev-banner-desc">
-        <code>SysOpt v3.1.0 (Dev)</code> añade un sistema completo de temas visuales (11 temas), soporte multiidioma (ES/EN/PT-BR),
+        <code>SysOpt v3.2.0 (Dev)</code> incluye 33 temas visuales, soporte multiidioma (ES/EN/PT-BR), 8 DLLs modulares,
         ventana de opciones y nuevas DLLs modulares (<code>SysOpt.Core.dll</code>, <code>SysOpt.ThemeEngine.dll</code>).
         La estrategia dual de tematización cubre 293 bindings DynamicResource + 298 llamadas Get-TC en UI dinámica.
         Próximos objetivos: CancellationToken unificado, abstracción de capa de datos y notificaciones Toast.
@@ -980,6 +980,63 @@
 
 
 
+
+  <!-- ── SECCIÓN: Cambios v3.2.0 Dev ── -->
+  <div class="section-label">Implementado en v3.2.0 (Dev)</div>
+  <div class="section-title">⚡ Externalización a DLLs + Toggle Win11 + 33 Temas</div>
+  <div class="bugs-grid">
+
+    <div class="bug-card" style="border-top-color:var(--green)">
+      <div class="bug-id" style="color:var(--green);background:rgba(74,232,150,.1)">[DLL] OPTIMIZER</div>
+      <div class="bug-name">SysOpt.Optimizer.dll — 15 tareas de optimización en C#</div>
+      <div class="bug-desc"><code>OptimizerEngine</code> con 15 tareas: TempFiles, RecycleBin, WUCache, CHKDSK, SFC, DISM, BrowserCache, DNS, EventLogs, etc. DTOs: <code>OptimizeOptions</code>, <code>OptimizeProgress</code>, <code>OptimizeResult</code>. Reducción de ~535 líneas en SysOpt.ps1.</div>
+      <div class="bug-fix">IMPL: <code>SysOpt.Optimizer.cs</code> (~600 líneas C#). Callback de progreso vía <code>Action&lt;OptimizeProgress&gt;</code> para UI en tiempo real.</div>
+    </div>
+
+    <div class="bug-card" style="border-top-color:var(--green)">
+      <div class="bug-id" style="color:var(--green);background:rgba(74,232,150,.1)">[DLL] STARTUP MANAGER</div>
+      <div class="bug-name">SysOpt.StartupManager.dll — gestión de inicio de Windows</div>
+      <div class="bug-desc"><code>StartupEngine</code> con <code>GetAll()</code> y <code>ApplyChanges()</code>. Lee entradas de HKCU/HKLM Run y Startup Folder. DTOs: <code>StartupEntry</code>, <code>ApplyResult</code>. Lógica de registro externalizada de PS1.</div>
+      <div class="bug-fix">IMPL: <code>SysOpt.StartupManager.cs</code>. Show-StartupManager reducido de 75 a 59 líneas.</div>
+    </div>
+
+    <div class="bug-card" style="border-top-color:var(--green)">
+      <div class="bug-id" style="color:var(--green);background:rgba(74,232,150,.1)">[DLL] DIAGNOSTICS</div>
+      <div class="bug-name">SysOpt.Diagnostics.dll — motor de diagnóstico del sistema</div>
+      <div class="bug-desc"><code>DiagnosticsEngine.Analyze()</code> evalúa 9 métricas del sistema con umbrales, genera puntuación 0-100, clasifica OK/WARN/CRIT y produce texto exportable. DTOs: <code>DiagInput</code>, <code>DiagItem</code>, <code>DiagResult</code>.</div>
+      <div class="bug-fix">IMPL: <code>SysOpt.Diagnostics.cs</code>. Show-DiagnosticReport reducido de 294 a 143 líneas (-51%).</div>
+    </div>
+
+    <div class="bug-card" style="border-top-color:var(--cyan)">
+      <div class="bug-id" style="color:var(--cyan);background:rgba(46,223,191,.1)">[THEME] 33 TEMAS</div>
+      <div class="bug-name">33 temas preinstalados — expansión de 11 a 33</div>
+      <div class="bug-desc">Nuevos temas: Apple, AWS, Azure, Bloomberg, Cyberpunk, Diablo, Dracula, Figma, GitHub Dark, Kiss, Monokai, Notion, Office, PS5, Simpsons, Slack, Solarized Dark, Star Wars, Symphony of the Night, Ubuntu, Wall Street, Xbox, y más.</div>
+      <div class="bug-fix">IMPL: 33 archivos <code>.theme</code> en <code>.\assets\themes\</code>. Cada tema define ~27 claves de color.</div>
+    </div>
+
+    <div class="bug-card" style="border-top-color:var(--cyan)">
+      <div class="bug-id" style="color:var(--cyan);background:rgba(46,223,191,.1)">[UI] TOGGLE WIN11</div>
+      <div class="bug-name">Toggle switch estilo Windows 11 en ventana de opciones</div>
+      <div class="bug-desc">Toggle 50×26px con pill outline (OFF) / relleno sólido (ON). Usa colores del tema activo (<code>BtnPrimaryBg</code>/<code>TextMuted</code>) en vez de colores fijos. Thumb circular de 16/18px con animación de posición.</div>
+      <div class="bug-fix">IMPL: ToggleButton con <code>ControlTemplate</code> en <code>OptionsWindow.xaml</code>. <code>UseLayoutRounding="True"</code> para anti-aliasing.</div>
+    </div>
+
+    <div class="bug-card" style="border-top-color:var(--blue)">
+      <div class="bug-id" style="color:var(--blue);background:rgba(91,163,255,.1)">[DBG] AUDITORÍA 8 DLLs</div>
+      <div class="bug-name">Debug muestra carga y estado de las 8 DLLs</div>
+      <div class="bug-desc">Splash de arranque con progreso 1/8 a 8/8. Auditoría en log: estado [OK]/[FALTA] de cada DLL. Auto-detección en disco de DLLs no cargadas con aviso <code>[EN DISCO NO CARGADA]</code>.</div>
+      <div class="bug-fix">IMPL: <code>$expectedDlls</code> con 9 guard types. Escaneo de <code>libs/*.dll</code> para detectar nuevas DLLs automáticamente.</div>
+    </div>
+
+    <div class="bug-card" style="border-top-color:var(--amber)">
+      <div class="bug-id" style="color:var(--amber);background:rgba(255,181,71,.1)">[OPT] REDUCCIÓN PS1</div>
+      <div class="bug-name">SysOpt.ps1 reducido de 6,924 a ~6,241 líneas (-9.9%)</div>
+      <div class="bug-desc">Externalización de lógica a DLLs + compactación de mapeos (checkbox→task/options vía <code>$taskMap</code>) + reflexión para <code>$diagHash</code>. Código movido a C#: optimización, registro de inicio, diagnóstico.</div>
+      <div class="bug-fix">IMPL: 683 líneas eliminadas. Wrapper delgado en PS1 llama a DLLs para lógica; PS1 solo mantiene UI/XAML.</div>
+    </div>
+
+  </div>
+
   <!-- ── SECCIÓN: Cambios v3.1.0 Dev ── -->
   <div class="section-label">Implementado en v3.1.0 (Dev)</div>
   <div class="section-title">🎨 Sistema de Temas + Multiidioma + Opciones</div>
@@ -994,7 +1051,7 @@
 
     <div class="bug-card" style="border-top-color:var(--cyan)">
       <div class="bug-id" style="color:var(--cyan);background:rgba(46,223,191,.1)">[THEME] 11 TEMAS</div>
-      <div class="bug-name">11 temas preinstalados en .\assets\themes\</div>
+      <div class="bug-name">Temas preinstalados en .\assets\themes\</div>
       <div class="bug-desc">Archivos <code>.theme</code> con formato clave=valor. Incluyen: Default, Default Light, Ice Blue, Ice Cream, Manga Japan, Matrix, PipBoy, Simpsons, Votorantim, Windows, Windows Light. Cada tema define ~27 claves de color base.</div>
       <div class="bug-fix">IMPL: <code>SysOpt.ThemeEngine.dll</code> — parser C# que carga y valida archivos .theme. Barra de progreso con hilo en segundo plano al aplicar tema.</div>
     </div>
@@ -1139,7 +1196,20 @@
       </div>
 
       <div class="tl-item current">
-        <div class="tl-ver">v3.1.0 (Dev) · EN DESARROLLO ◉</div>
+        <div class="tl-ver">v3.2.0 (Dev) · EN DESARROLLO ◉</div>
+        <div class="tl-title">Externalización DLLs + 33 temas + toggle Win11</div>
+        <ul class="tl-list">
+          <li class="done-li">[DLL] SysOpt.Optimizer.dll — 15 tareas de optimización</li>
+          <li class="done-li">[DLL] SysOpt.StartupManager.dll — gestión de inicio</li>
+          <li class="done-li">[DLL] SysOpt.Diagnostics.dll — diagnóstico del sistema</li>
+          <li class="done-li">[THEME] 33 temas preinstalados (+22 nuevos)</li>
+          <li class="done-li">[UI] Toggle Win11 en opciones</li>
+          <li class="done-li">[DBG] Auditoría de 8 DLLs en debug</li>
+          <li class="done-li">[OPT] PS1 reducido 683 líneas (-9.9%)</li>
+        </ul>
+      </div>
+      <div class="tl-item">
+        <div class="tl-ver">v3.1.0 (Dev) · COMPLETADO ✓</div>
         <div class="tl-title">Temas visuales, multiidioma y ventana de opciones</div>
         <ul class="tl-list">
           <li class="done-li">[THEME] Motor de temas dual: DynamicResource (293) + Get-TC (298)</li>
@@ -1221,7 +1291,7 @@
           <div class="item-content">
             <div class="item-name">Sistema de temas completo — 11 temas visuales</div>
             <div class="item-desc">Motor de temas con estrategia dual: <code>{DynamicResource}</code> para XAML (293 bindings) + <code>Get-TC</code> para UI dinámica (298 llamadas). 11 temas en <code>.\assets\themes\</code>, <code>SysOpt.ThemeEngine.dll</code> como parser C#. Cobertura completa: barras, badges, iconos, ComboBox, gradientes y 8 ventanas dinámicas.</div>
-            <div class="item-tags"><span class="tag done-tag">✓ Completado en v3.1.0 Dev</span><span class="tag">Theming</span><span class="tag">DynamicResource</span><span class="tag">DLL</span></div>
+            <div class="item-tags"><span class="tag done-tag">✓ Completado en v3.1.0</span><span class="tag">Theming</span><span class="tag">DynamicResource</span><span class="tag">DLL</span></div>
           </div>
         </div>
         <div class="item-card">
@@ -1265,7 +1335,7 @@
           <div class="item-content">
             <div class="item-name">Multiidioma completo — ES / EN / PT-BR</div>
             <div class="item-desc">Sistema de internacionalización con archivos <code>.lang</code> externos en <code>.\assets\lang\</code>. 3 idiomas: Español, English, Português. <code>LangEngine</code> en <code>SysOpt.Core.dll</code> como parser C#. Cambio en caliente sin reinicio, persistencia en settings.json.</div>
-            <div class="item-tags"><span class="tag done-tag">✓ Completado en v3.1.0 Dev</span><span class="tag">i18n</span><span class="tag">LangEngine</span><span class="tag">DLL</span></div>
+            <div class="item-tags"><span class="tag done-tag">✓ Completado en v3.1.0</span><span class="tag">i18n</span><span class="tag">LangEngine</span><span class="tag">DLL</span></div>
           </div>
         </div>
         <div class="item-card">
@@ -1291,12 +1361,12 @@
 
   <!-- ── Footer ── -->
   <footer>
-    <p style="margin-bottom:12px;">SysOpt Windows Optimizer GUI — v3.1.0 (Dev) · Base estable v2.5.0 · Desarrollando hacia v3.x</p>
+    <p style="margin-bottom:12px;">SysOpt Windows Optimizer GUI — v3.2.0 (Dev) · Base estable v2.5.0 · Desarrollando hacia v3.x</p>
     <div>
-      <span class="chip"><span class="chip-dot" style="background:var(--purple)"></span>v3.1.0 Dev</span>
-      <span class="chip"><span class="chip-dot" style="background:var(--green)"></span>11 Temas visuales</span>
+      <span class="chip"><span class="chip-dot" style="background:var(--purple)"></span>v3.2.0 Dev</span>
+      <span class="chip"><span class="chip-dot" style="background:var(--green)"></span>33 Temas + 8 DLLs</span>
       <span class="chip"><span class="chip-dot" style="background:var(--cyan)"></span>Multiidioma ES/EN/PT</span>
-      <span class="chip"><span class="chip-dot" style="background:var(--blue)"></span>DLL Core + ThemeEngine</span>
+      <span class="chip"><span class="chip-dot" style="background:var(--blue)"></span>8 DLLs modulares</span>
       <span class="chip"><span class="chip-dot" style="background:var(--amber)"></span>Ventana de Opciones</span>
       <span class="chip"><span class="chip-dot" style="background:var(--red)"></span>ComboBox theming</span>
       <span class="chip"><span class="chip-dot" style="background:var(--muted)"></span>PowerShell + WPF</span>
