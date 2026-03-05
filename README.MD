@@ -1,4 +1,4 @@
-﻿# <img src="./resources/SysOpt.png" width="28" alt="SysOpt"> SysOpt v3.2.0 (Dev) — Windows System Optimizer (Español)
+﻿# <img src="./resources/SysOpt.png" width="28" alt="SysOpt"> SysOpt v3.2.0 (STABLE) — Windows System Optimizer (Español)
 **Script PowerShell con interfaz gráfica — `SysOpt.ps1`**
 
 > **Nota de versión:** La versión en desarrollo activa es **v3.2.0-STABLE**, que incluye 68 temas visuales, soporte multiidioma (ES/EN/PT-BR), ventana de opciones con toggle Win11, CancellationToken global, Data Access Layer, Agent hooks, notificaciones Toast temáticas, Easter Egg Breakout, y **10 DLLs modulares** (Core, ThemeEngine, DiskEngine, MemoryHelper, WseTrim, Optimizer, StartupManager, Diagnostics, Toast, Breakout). La última versión pública estable es **v2.5.0**.
@@ -229,7 +229,7 @@ No requiere PowerShell ni cambiar políticas de ejecución. Simplemente haz clic
 
 ## 📝 Historial de cambios
 
-### v3.2.0 (Dev) *(versión en desarrollo)*
+### v3.2.0 (STABLE)
 
 #### CTK + DAL + Agent Hooks + 3 DLLs Nuevas
 
@@ -395,7 +395,7 @@ No requiere PowerShell ni cambiar políticas de ejecución. Simplemente haz clic
 
 ---
 
-# <img src="./resources/SysOpt.png" width="28" alt="SysOpt"> SysOpt v3.2.0 (Dev) — Windows System Optimizer (English)
+# <img src="./resources/SysOpt.png" width="28" alt="SysOpt"> SysOpt v3.2.0 (STABLE) — Windows System Optimizer (English)
 **PowerShell Script with Graphical Interface — `SysOpt.ps1`**
 
 > **Version note:** The active development version is **v3.2.0-STABLE**, which adds 68 visual themes, multi-language support (ES/EN/PT-BR), options window with Win11 toggle, global CancellationToken, Data Access Layer, Agent hooks, theme-aware Toast notifications, Easter Egg Breakout, and **10 modular DLLs** (Core, ThemeEngine, DiskEngine, MemoryHelper, WseTrim, Optimizer, StartupManager, Diagnostics, Toast, Breakout). The latest public stable release is **v2.5.0**.
@@ -624,7 +624,7 @@ No PowerShell required, no execution policy changes needed. Simply right-click `
 
 ## 📝 Changelog
 
-### v3.2.0 (Dev) *(active development build)*
+### v3.2.0 (STABLE)
 
 #### CTK + DAL + Agent Hooks + 3 New DLLs
 
