@@ -1,7 +1,7 @@
 ﻿# <img src="./resources/SysOpt.png" width="28" alt="SysOpt"> SysOpt v3.2.0 (Dev) — Windows System Optimizer (Español)
 **Script PowerShell con interfaz gráfica — `SysOpt.ps1`**
 
-> **Nota de versión:** La versión en desarrollo activa es **v3.2.0 (Dev)**, que incluye 33 temas visuales, soporte multiidioma (ES/EN/PT-BR), ventana de opciones con toggle Win11, CancellationToken global, Data Access Layer, Agent hooks, y **8 DLLs modulares** (Core, ThemeEngine, DiskEngine, MemoryHelper, WseTrim, Optimizer, StartupManager, Diagnostics). La última versión pública estable es **v2.5.0**.
+> **Nota de versión:** La versión en desarrollo activa es **v3.2.0-STABLE**, que incluye 68 temas visuales, soporte multiidioma (ES/EN/PT-BR), ventana de opciones con toggle Win11, CancellationToken global, Data Access Layer, Agent hooks, notificaciones Toast temáticas, Easter Egg Breakout, y **10 DLLs modulares** (Core, ThemeEngine, DiskEngine, MemoryHelper, WseTrim, Optimizer, StartupManager, Diagnostics, Toast, Breakout). La última versión pública estable es **v2.5.0**.
 
 Este proyecto implementa un **optimizador avanzado para Windows**, desarrollado íntegramente en **PowerShell** y utilizando una interfaz gráfica basada en **WPF/XAML**. Permite ejecutar tareas de mantenimiento, limpieza, verificación y optimización del sistema desde una única ventana, con monitorización de recursos en tiempo real, barra de progreso, consola integrada y modo de análisis sin cambios.
 
@@ -120,7 +120,7 @@ Construida en XAML, incluye:
 - Consola estilo terminal con colores tipo PowerShell
 - Barra de progreso con gradiente y porcentaje exacto
 - **Diálogo de progreso con botón "Segundo plano"** para exportaciones y cargas largas
-- **Sistema de temas completo** — 33 temas intercambiables en runtime con cobertura total de la UI
+- **Sistema de temas completo** — 68 temas intercambiables en runtime con cobertura total de la UI
 - **Soporte multiidioma** — ES, EN, PT-BR con cambio en caliente sin reiniciar
 - **Ventana de opciones** para personalizar tema, idioma y debug (toggle Win11)
 - Opción de reinicio automático al finalizar
@@ -131,9 +131,9 @@ Construida en XAML, incluye:
 
 ### 🎨 Sistema de Temas
 
-Motor de temas completo que permite cambiar la apariencia visual de toda la aplicación en tiempo real. Incluye 33 temas preinstalados con paletas de colores distintas.
+Motor de temas completo que permite cambiar la apariencia visual de toda la aplicación en tiempo real. Incluye 68 temas preinstalados con paletas de colores distintas.
 
-- **33 temas incluidos**: Default, Default Light, Ice Blue, Ice Cream, Manga Japan, Matrix, PipBoy, Simpsons, Votorantim, Windows, Windows Light, y 22 temas adicionales
+- **68 temas incluidos**: Default, Default Light, Ice Blue, Ice Cream, Manga Japan, Matrix, PipBoy, Simpsons, Votorantim, Windows, Windows Light, y 57 temas adicionales (gaming, tech, diseño)
 - **Tematización dual**: XAML principal via `{DynamicResource}` + UI dinámica via `Get-TC` (298 llamadas)
 - **Cobertura total**: barras de progreso, badges de estado, iconos, ComboBox dropdowns, gradientes, diálogos y 8 ventanas dinámicas
 - **Archivos `.theme`** externos en `.\assets\themes\` — formato clave=valor fácil de editar
@@ -154,8 +154,11 @@ Soporte completo de internacionalización con archivos de idioma externos y apli
 
 ### ⚙️ Ventana de Opciones
 
-Nuevo botón Settings/Opciones entre Tareas y Acerca de, con panel dedicado para personalización.
+Panel unificado con **3 secciones de navegación**: Configuración, Tareas y Acerca de. El botón "About" independiente fue eliminado del header y su contenido migrado aquí.
 
+- **Sección Configuración** — Selector de tema, selector de idioma, toggle debug Win11, toggle notificaciones Toast
+- **Sección Tareas** — Panel de operaciones async en segundo plano
+- **Sección Acerca de** — Logo de la app, versión, desarrollador, changelog y Easter Egg (4 clicks en logo)
 - **Selector de tema** — ComboBox con todos los temas disponibles, aplicación inmediata
 - **Selector de idioma** — ComboBox con todos los idiomas disponibles, aplicación inmediata
 - **Toggle debug Win11** — switch estilo Windows 11 (50×26px) con anti-aliasing, usa colores del tema activo
@@ -163,7 +166,7 @@ Nuevo botón Settings/Opciones entre Tareas y Acerca de, con panel dedicado para
 
 ---
 
-## 🏗️ Arquitectura Modular — 8 DLLs
+## 🏗️ Arquitectura Modular — 10 DLLs
 
 SysOpt externaliza lógica pesada en DLLs compiladas en C# para mejor rendimiento y mantenibilidad:
 
@@ -177,6 +180,8 @@ SysOpt externaliza lógica pesada en DLLs compiladas en C# para mejor rendimient
 | `SysOpt.Optimizer.dll` | 15 tareas de optimización del sistema | `SysOpt.Optimizer` |
 | `SysOpt.StartupManager.dll` | Gestión de programas de inicio (HKCU/HKLM) | `SysOpt.StartupManager` |
 | `SysOpt.Diagnostics.dll` | Motor de diagnóstico con 9 métricas | `SysOpt.Diagnostics` |
+| `SysOpt.Toast.dll` | Notificaciones Toast temáticas WPF (4 tipos) | `SysOpt.Toast` |
+| `SysOpt.Breakout.dll` | Easter Egg — Atari Breakout (DrawingVisual 60fps) | `SysOpt.Breakout` |
 
 Las DLLs se cargan secuencialmente en el splash con indicadores de progreso (10%→59%) y se auditan en el debug log.
 
@@ -187,7 +192,7 @@ cd libs\csproj
 .\compile-dlls.ps1
 ```
 
-El script auto-descubre todos los `.cs` en `.\libs\csproj\` y los compila con las referencias inter-DLL correctas.
+El script auto-descubre todos los `.cs` en `.\libs\csproj\` y los compila con las referencias inter-DLL correctas. Incluye detección automática de referencias WPF para `SysOpt.Breakout.cs` (PresentationFramework, PresentationCore, WindowsBase).
 
 ---
 
@@ -236,11 +241,19 @@ No requiere PowerShell ni cambiar políticas de ejecución. Simplemente haz clic
 - **[DLL]** `SysOpt.StartupManager.dll` — gestión de programas de inicio de Windows (HKCU/HKLM Run).
 - **[DLL]** `SysOpt.Diagnostics.dll` — motor de diagnóstico del sistema con 9 métricas y scoring.
 - **[DLL]** `compile-dlls.ps1` renovado — auto-descubre todos los `.cs` de `.\libs\csproj\` con referencias cruzadas.
-- **[DLL]** `Load-SysOptDll` helper unificado — un punto de carga para las 8 DLLs.
+- **[DLL]** `Load-SysOptDll` helper unificado — un punto de carga para las 10 DLLs.
 - **[DLL]** WseTrim cargado al inicio (junto al resto) en lugar de bajo demanda.
-- **[THEME]** Expansión de 11 a **33 temas** preinstalados.
+- **[THEME]** Expansión de 11 a **68 temas** preinstalados (+57 nuevos: gaming, tech, diseño).
 - **[UI]** Toggle switch estilo Win11 en ventana de opciones (50×26px, anti-aliased, colores del tema activo).
-- **[DBG]** Auditoría y carga de 8 DLLs en debug log y splash con progreso monotónico.
+- **[UI]** Sección "Acerca de" migrada a OptionsWindow (3 secciones: Config/Tasks/About). Botón About eliminado del header.
+- **[UI]** Reordenación de botones: Tasks → posición config, Options → posición anterior de About.
+- **[DLL]** `SysOpt.Toast.dll` — notificaciones toast temáticas WPF (4 tipos: Success/Info/Warning/Error, sincronización con tema activo).
+- **[DLL]** `SysOpt.Breakout.dll` — Easter Egg Atari Breakout con DrawingVisual 60fps en proceso aislado.
+- **[I18N]** 54 keys por idioma, 32 strings de `Diagnostics.cs` localizados con `Loc.T()`.
+- **[DBG]** Auditoría ampliada a **10 DLLs** en debug log y splash con progreso monotónico.
+- **[FIX]** Cierre completo: disposal de 6 contextos async + `[Environment]::Exit(0)` para eliminar procesos zombie.
+- **[DATA]** `SysOpt.info` — `$AppNotes` externalizado con formato box-drawing beautificado.
+- **[EGG]** Easter Egg: Atari Breakout oculto (4 clicks en logo About), DrawingVisual renderer, proceso aislado 60fps.
 - **[OPT]** PS1 reducido de 6,924 a 6,243 líneas (−681, −9.8%) mediante externalización a DLLs + compactación (`$taskMap`, reflexión `$diagHash`).
 - **[FIX]** Todas las funciones públicas (73) convertidas a `global:` scope para compatibilidad con handlers WPF.
 - **[FIX]** `StartupEntry.Location` → `StartupEntry.RegPath` — propiedad alineada con la clase C#.
@@ -385,7 +398,7 @@ No requiere PowerShell ni cambiar políticas de ejecución. Simplemente haz clic
 # <img src="./resources/SysOpt.png" width="28" alt="SysOpt"> SysOpt v3.2.0 (Dev) — Windows System Optimizer (English)
 **PowerShell Script with Graphical Interface — `SysOpt.ps1`**
 
-> **Version note:** The active development version is **v3.2.0 (Dev)**, which adds 33 visual themes, multi-language support (ES/EN/PT-BR), options window with Win11 toggle, global CancellationToken, Data Access Layer, Agent hooks, and **8 modular DLLs** (Core, ThemeEngine, DiskEngine, MemoryHelper, WseTrim, Optimizer, StartupManager, Diagnostics). The latest public stable release is **v2.5.0**.
+> **Version note:** The active development version is **v3.2.0-STABLE**, which adds 68 visual themes, multi-language support (ES/EN/PT-BR), options window with Win11 toggle, global CancellationToken, Data Access Layer, Agent hooks, theme-aware Toast notifications, Easter Egg Breakout, and **10 modular DLLs** (Core, ThemeEngine, DiskEngine, MemoryHelper, WseTrim, Optimizer, StartupManager, Diagnostics, Toast, Breakout). The latest public stable release is **v2.5.0**.
 
 This project provides an **advanced Windows optimization tool**, fully developed in **PowerShell** with a graphical interface built on **WPF/XAML**. It allows you to run maintenance, cleanup, verification, and system optimization tasks from a single window, with real-time resource monitoring, a progress bar, an integrated console, and an analysis mode that makes no changes.
 
@@ -502,7 +515,7 @@ Built using XAML, featuring:
 - Terminal-style console with PowerShell-like colors
 - Gradient progress bar with exact percentage
 - **Progress dialog with "Background" button** for long exports and snapshot loads
-- **Complete theme system** — 33 swappable themes at runtime with full UI coverage
+- **Complete theme system** — 68 swappable themes at runtime with full UI coverage
 - **Multi-language support** — ES, EN, PT-BR with hot-swap without restart
 - **Options window** to customize theme, language and debug mode (Win11 toggle)
 - Optional automatic restart when finished
@@ -513,9 +526,9 @@ Built using XAML, featuring:
 
 ### 🎨 Theme System
 
-Complete theme engine that allows changing the entire application's visual appearance in real time. Includes 33 pre-installed themes with distinct color palettes.
+Complete theme engine that allows changing the entire application's visual appearance in real time. Includes 68 pre-installed themes with distinct color palettes.
 
-- **33 included themes**: Default, Default Light, Ice Blue, Ice Cream, Manga Japan, Matrix, PipBoy, Simpsons, Votorantim, Windows, Windows Light, and 22 additional themes
+- **68 included themes**: Default, Default Light, Ice Blue, Ice Cream, Manga Japan, Matrix, PipBoy, Simpsons, Votorantim, Windows, Windows Light, and 57 additional themes (gaming, tech, design)
 - **Dual theming strategy**: main XAML via `{DynamicResource}` + dynamic UI via `Get-TC` (298 calls)
 - **Full coverage**: progress bars, status badges, icons, ComboBox dropdowns, gradients, dialogs and 8 dynamic windows
 - **External `.theme` files** in `.\assets\themes\` — easy-to-edit key=value format
@@ -536,8 +549,11 @@ Complete internationalization support with external language files and instant a
 
 ### ⚙️ Options Window
 
-New Settings/Options button between Tasks and About, with a dedicated panel for customization.
+Unified panel with **3 navigation sections**: Settings, Tasks, and About. The standalone "About" button was removed from the header and its content migrated here.
 
+- **Settings section** — Theme selector, language selector, Win11 debug toggle, Toast notifications toggle
+- **Tasks section** — Background async operations panel
+- **About section** — App logo, version, developer, changelog, and Easter Egg (4 clicks on logo)
 - **Theme selector** — ComboBox listing all available themes, instant application
 - **Language selector** — ComboBox listing all available languages, instant application
 - **Win11 debug toggle** — Windows 11–style switch (50×26px) with anti-aliasing, uses active theme colors
@@ -545,7 +561,7 @@ New Settings/Options button between Tasks and About, with a dedicated panel for 
 
 ---
 
-## 🏗️ Modular Architecture — 8 DLLs
+## 🏗️ Modular Architecture — 10 DLLs
 
 SysOpt externalizes heavy logic into compiled C# DLLs for better performance and maintainability:
 
@@ -559,6 +575,8 @@ SysOpt externalizes heavy logic into compiled C# DLLs for better performance and
 | `SysOpt.Optimizer.dll` | 15 system optimization tasks | `SysOpt.Optimizer` |
 | `SysOpt.StartupManager.dll` | Startup program management (HKCU/HKLM Run) | `SysOpt.StartupManager` |
 | `SysOpt.Diagnostics.dll` | Diagnostics engine with 9 metrics | `SysOpt.Diagnostics` |
+| `SysOpt.Toast.dll` | Theme-aware WPF Toast notifications (4 types) | `SysOpt.Toast` |
+| `SysOpt.Breakout.dll` | Easter Egg — Atari Breakout (DrawingVisual 60fps) | `SysOpt.Breakout` |
 
 DLLs are loaded sequentially during splash with progress indicators (10%→59%) and audited in the debug log.
 
@@ -569,7 +587,7 @@ cd libs\csproj
 .\compile-dlls.ps1
 ```
 
-The script auto-discovers all `.cs` files in `.\libs\csproj\` and compiles them with correct cross-DLL references.
+The script auto-discovers all `.cs` files in `.\libs\csproj\` and compiles them with correct cross-DLL references. Includes automatic WPF reference detection for `SysOpt.Breakout.cs` (PresentationFramework, PresentationCore, WindowsBase).
 
 ---
 
@@ -618,11 +636,19 @@ No PowerShell required, no execution policy changes needed. Simply right-click `
 - **[DLL]** `SysOpt.StartupManager.dll` — Windows startup program management (HKCU/HKLM Run).
 - **[DLL]** `SysOpt.Diagnostics.dll` — system diagnostics engine with 9 metrics and scoring.
 - **[DLL]** `compile-dlls.ps1` revamped — auto-discovers all `.cs` files in `.\libs\csproj\` with cross-DLL references.
-- **[DLL]** `Load-SysOptDll` unified helper — single loading point for all 8 DLLs.
+- **[DLL]** `Load-SysOptDll` unified helper — single loading point for all 10 DLLs.
 - **[DLL]** WseTrim loaded at startup (alongside all others) instead of on-demand.
-- **[THEME]** Expansion from 11 to **33 pre-installed themes**.
+- **[THEME]** Expansion from 11 to **68 pre-installed themes** (+57 new: gaming, tech, design).
 - **[UI]** Win11-style toggle switch in options window (50×26px, anti-aliased, active theme colors).
-- **[DBG]** Audit and loading of 8 DLLs in debug log and splash with monotonic progress.
+- **[UI]** About section migrated to OptionsWindow (3 sections: Settings/Tasks/About). Standalone About button removed from header.
+- **[UI]** Button reorder: Tasks → config position, Options → former About position.
+- **[DLL]** `SysOpt.Toast.dll` — theme-aware WPF Toast notifications (4 types: Success/Info/Warning/Error, synced with active theme).
+- **[DLL]** `SysOpt.Breakout.dll` — Easter Egg Atari Breakout with DrawingVisual 60fps in isolated process.
+- **[I18N]** 54 keys per language, 32 strings from `Diagnostics.cs` localized with `Loc.T()`.
+- **[DBG]** Audit expanded to **10 DLLs** in debug log and splash with monotonic progress.
+- **[FIX]** Complete exit cleanup: disposal of 6 async contexts + `[Environment]::Exit(0)` to kill zombie processes.
+- **[DATA]** `SysOpt.info` — `$AppNotes` externalized with beautified box-drawing format.
+- **[EGG]** Easter Egg: Hidden Atari Breakout (4 clicks on About logo), DrawingVisual renderer, isolated 60fps process.
 - **[OPT]** PS1 reduced from 6,924 to 6,243 lines (−681, −9.8%) via DLL externalization + compaction (`$taskMap`, reflection-based `$diagHash`).
 - **[FIX]** All 73 public functions converted to `global:` scope for WPF event handler compatibility.
 - **[FIX]** `StartupEntry.Location` → `StartupEntry.RegPath` — property aligned with C# class.

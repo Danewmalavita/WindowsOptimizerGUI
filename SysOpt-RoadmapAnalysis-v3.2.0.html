@@ -1,0 +1,1052 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SysOpt v3.2.0 — Análisis de Roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:      #0D0F1A;
+    --card:    #131625;
+    --card2:   #1A1E2F;
+    --border:  #252B40;
+    --blue:    #5BA3FF;
+    --cyan:    #2EDFBF;
+    --amber:   #FFB547;
+    --red:     #FF6B84;
+    --green:   #4AE896;
+    --purple:  #9B7EFF;
+    --txt:     #E8ECF4;
+    --muted:   #7880A0;
+    --mono:    'JetBrains Mono', monospace;
+    --sans:    'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(91,163,255,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(91,163,255,.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: .10;
+    pointer-events: none;
+    z-index: 0;
+    animation: drift 18s ease-in-out infinite alternate;
+  }
+  .blob-1 { width:520px; height:520px; background:#5BA3FF; top:-120px; left:-120px; }
+  .blob-2 { width:420px; height:420px; background:#2EDFBF; bottom:-60px; right:-80px; animation-delay:-9s; }
+  .blob-3 { width:320px; height:320px; background:#9B7EFF; top:45%; left:50%; transform:translate(-50%,-50%); animation-delay:-4s; }
+
+  @keyframes drift {
+    from { transform: translate(0,0) scale(1); }
+    to   { transform: translate(28px,18px) scale(1.07); }
+  }
+  .blob-3 { animation-name: drift3; }
+  @keyframes drift3 {
+    from { transform: translate(-50%,-50%) scale(1); }
+    to   { transform: translate(calc(-50% + 28px), calc(-50% + 18px)) scale(1.07); }
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1140px;
+    margin: 0 auto;
+    padding: 52px 28px 96px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    padding-bottom: 36px;
+    margin-bottom: 48px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-fallback {
+    width: 60px; height: 60px;
+    border-radius: 14px;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; flex-shrink: 0;
+  }
+  .header-brand h1 {
+    font-size: clamp(1.6rem, 3vw, 2.5rem);
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+  }
+  .header-brand h1 .a1 { color: var(--blue); }
+  .header-brand h1 .a2 { color: var(--cyan); }
+  .header-meta {
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .header-meta .sep { color: var(--border); }
+  .badge-ver {
+    margin-left: auto;
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--green);
+    background: rgba(74,232,150,.1);
+    border: 1px solid rgba(74,232,150,.25);
+    border-radius: 100px;
+    padding: 4px 14px;
+    white-space: nowrap;
+    align-self: flex-start;
+    margin-top: 4px;
+  }
+
+  /* ── Section chrome ── */
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .section-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 22px;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--blue), var(--cyan));
+  }
+  .card.green::before { background: linear-gradient(90deg, var(--green), var(--cyan)); }
+  .card.amber::before { background: linear-gradient(90deg, var(--amber), var(--red)); }
+  .card.purple::before { background: linear-gradient(90deg, var(--purple), var(--blue)); }
+
+  /* ── Stats row ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+  }
+  .stat-box {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 14px;
+    text-align: center;
+  }
+  .stat-lbl {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .stat-val {
+    font-family: var(--mono);
+    font-size: 1.55rem;
+    font-weight: 700;
+  }
+  .c-blue   { color: var(--blue); }
+  .c-green  { color: var(--green); }
+  .c-amber  { color: var(--amber); }
+  .c-red    { color: var(--red); }
+  .c-purple { color: var(--purple); }
+  .c-cyan   { color: var(--cyan); }
+  .c-muted  { color: var(--muted); }
+
+  /* ── Progress bar ── */
+  .progress-wrap {
+    margin: 24px 0 8px;
+  }
+  .progress-bar-bg {
+    height: 14px;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+    position: relative;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 7px;
+    background: linear-gradient(90deg, var(--green), var(--cyan));
+    position: relative;
+    transition: width .6s ease;
+  }
+  .progress-bar-fill::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.12) 50%, transparent 100%);
+    animation: shimmer 2s infinite;
+  }
+  @keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(200%); }
+  }
+  .progress-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .progress-pct {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--green);
+    font-family: var(--mono);
+    margin-bottom: 4px;
+  }
+  .progress-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* ── Objective grid ── */
+  .obj-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+    gap: 14px;
+  }
+  .obj-card {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .2s, transform .2s;
+  }
+  .obj-card:hover { transform: translateY(-2px); }
+  .obj-card.done    { border-left: 3px solid var(--green); }
+  .obj-card.done:hover    { border-color: rgba(74,232,150,.4); }
+  .obj-card.partial { border-left: 3px solid var(--amber); }
+  .obj-card.partial:hover { border-color: rgba(255,181,71,.4); }
+  .obj-card.pending { border-left: 3px solid var(--red); }
+  .obj-card.pending:hover { border-color: rgba(255,107,132,.4); }
+  .obj-card.super   { border-left: 3px solid var(--cyan); }
+  .obj-card.super:hover   { border-color: rgba(46,223,191,.4); }
+
+  .obj-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .obj-id {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .obj-id.done    { color: var(--green); background: rgba(74,232,150,.1); }
+  .obj-id.partial { color: var(--amber); background: rgba(255,181,71,.1); }
+  .obj-id.pending { color: var(--red);   background: rgba(255,107,132,.1); }
+  .obj-id.super   { color: var(--cyan);  background: rgba(46,223,191,.1); }
+
+  .obj-status {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-left: auto;
+  }
+  .obj-status.done    { color: var(--green); background: rgba(74,232,150,.08); }
+  .obj-status.partial { color: var(--amber); background: rgba(255,181,71,.08); }
+  .obj-status.pending { color: var(--red);   background: rgba(255,107,132,.08); }
+  .obj-status.super   { color: var(--cyan);  background: rgba(46,223,191,.08); }
+
+  .obj-name {
+    font-size: .95rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .obj-desc {
+    font-size: .8rem;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .obj-evidence {
+    font-family: var(--mono);
+    font-size: .7rem;
+    color: var(--muted);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    line-height: 1.5;
+  }
+  .obj-evidence code {
+    color: var(--blue);
+    font-size: .68rem;
+  }
+
+  /* ── DLL table ── */
+  .dll-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .dll-table th {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 9px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .dll-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(37,43,64,.5);
+    vertical-align: middle;
+  }
+  .dll-table tr:last-child td { border-bottom: none; }
+  .dll-table tr:hover td { background: rgba(26,30,47,.7); }
+  .dll-num {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    width: 30px;
+  }
+  .dll-name {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--cyan);
+  }
+  .dll-func {
+    font-size: 12px;
+    color: var(--txt);
+  }
+  .dll-src {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  /* ── Timeline ── */
+  .timeline { padding-left: 0; }
+  .tl-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-left: 2px solid var(--border);
+    padding-left: 28px;
+    margin-left: 12px;
+  }
+  .tl-item { position: relative; padding: 0 0 32px; }
+  .tl-item:last-child { padding-bottom: 0; }
+  .tl-item::before {
+    content: '';
+    position: absolute;
+    left: -36px; top: 5px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg);
+  }
+  .tl-item.done::before    { background: var(--green); border-color: var(--green); box-shadow: 0 0 12px var(--green); }
+  .tl-item.current::before { background: var(--blue);  border-color: var(--blue);  box-shadow: 0 0 12px var(--blue); }
+  .tl-item.next::before    { background: var(--card2); border-color: var(--amber); }
+  .tl-item.future::before  { background: var(--card2); border-color: var(--muted); }
+
+  .tl-ver {
+    font-family: var(--mono);
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .tl-item.done .tl-ver    { color: var(--green); }
+  .tl-item.current .tl-ver { color: var(--blue); }
+  .tl-item.next .tl-ver    { color: var(--amber); }
+  .tl-title { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+  .tl-desc {
+    font-size: .8rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Pending items ── */
+  .pending-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+  }
+  .pending-card {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: border-color .2s, transform .2s;
+  }
+  .pending-card:hover { transform: translateY(-2px); border-color: rgba(255,181,71,.3); }
+  .pending-id {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--amber);
+    background: rgba(255,181,71,.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 8px;
+  }
+  .pending-name { font-size: .95rem; font-weight: 700; margin-bottom: 6px; }
+  .pending-desc { font-size: .8rem; color: var(--muted); line-height: 1.5; }
+  .pending-prio {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-top: 10px;
+  }
+  .prio-high   { color: var(--red);    background: rgba(255,107,132,.08); }
+  .prio-medium { color: var(--amber);  background: rgba(255,181,71,.08); }
+  .prio-low    { color: var(--purple); background: rgba(155,126,255,.08); }
+
+  /* ── XAML & Theme tags ── */
+  .tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .tag {
+    font-family: var(--mono);
+    font-size: .68rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(91,163,255,.06);
+    color: var(--blue);
+    border: 1px solid rgba(91,163,255,.12);
+    transition: background .15s, border-color .15s;
+  }
+  .tag:hover { background: rgba(91,163,255,.12); border-color: rgba(91,163,255,.25); }
+  .tag.t-green  { color: var(--green);  background: rgba(74,232,150,.06);  border-color: rgba(74,232,150,.12); }
+  .tag.t-green:hover  { background: rgba(74,232,150,.12); border-color: rgba(74,232,150,.25); }
+  .tag.t-purple { color: var(--purple); background: rgba(155,126,255,.06); border-color: rgba(155,126,255,.12); }
+  .tag.t-purple:hover { background: rgba(155,126,255,.12); border-color: rgba(155,126,255,.25); }
+  .tag.t-amber  { color: var(--amber);  background: rgba(255,181,71,.06);  border-color: rgba(255,181,71,.12); }
+  .tag.t-amber:hover  { background: rgba(255,181,71,.12); border-color: rgba(255,181,71,.25); }
+  .tag.t-cyan   { color: var(--cyan);   background: rgba(46,223,191,.06);  border-color: rgba(46,223,191,.12); }
+  .tag.t-cyan:hover   { background: rgba(46,223,191,.12); border-color: rgba(46,223,191,.25); }
+
+  /* ── Donut SVG ── */
+  .donut-wrap {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .donut-svg { width: 200px; height: 200px; }
+  .donut-legend { display: flex; flex-direction: column; gap: 8px; }
+  .donut-leg-item {
+    display: flex; align-items: center; gap: 10px;
+    font-size: .85rem;
+  }
+  .donut-leg-dot {
+    width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  }
+  .donut-leg-label { color: var(--txt); }
+  .donut-leg-val {
+    font-family: var(--mono);
+    font-size: .8rem;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding-top: 36px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 12px;
+  }
+  .chips {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 3px 12px;
+    font-size: 10px;
+  }
+  .chip-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+
+  @media (max-width: 780px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .obj-grid  { grid-template-columns: 1fr; }
+    header { flex-wrap: wrap; }
+    .badge-ver { margin-left: 0; }
+    .donut-wrap { flex-direction: column; align-items: center; }
+  }
+</style>
+</head>
+<body>
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<div class="container">
+
+  <!-- ═══ HEADER ═══════════════════════════════════════════════════════════ -->
+  <header>
+    <div class="logo-fallback">🗺️</div>
+    <div class="header-brand">
+      <h1><span class="a1">SYS</span>OPT <span class="a2">·</span> Análisis de Roadmap</h1>
+      <div class="header-meta">
+        <span>📅 5 de marzo de 2026</span>
+        <span class="sep">|</span>
+        <span>🔍 Cruce automático: Roadmap HTML vs código fuente</span>
+      </div>
+    </div>
+    <div class="badge-ver">v3.2.0 STABLE</div>
+  </header>
+
+  <!-- ═══ RESUMEN EJECUTIVO ═══════════════════════════════════════════════ -->
+  <section class="card">
+    <div class="section-label">Resumen ejecutivo</div>
+    <div class="section-title">Estado general del proyecto</div>
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-lbl">Progreso Roadmap</div>
+        <div class="stat-val c-green">70%</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-lbl">Objetivos v3.x</div>
+        <div class="stat-val c-blue">7/10</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-lbl">DLLs modulares</div>
+        <div class="stat-val c-cyan">10</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-lbl">Temas visuales</div>
+        <div class="stat-val c-purple">68</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-lbl">Archivos C#</div>
+        <div class="stat-val c-amber">16</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-lbl">Ventanas XAML</div>
+        <div class="stat-val c-blue">11</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-lbl">Idiomas</div>
+        <div class="stat-val c-green">3</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-lbl">Total archivos</div>
+        <div class="stat-val c-muted">126</div>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="progress-wrap">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width: 70%"></div>
+      </div>
+      <div class="progress-labels">
+        <span>0%</span>
+        <span>7 de 10 objetivos completados — 70%</span>
+        <span>100%</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ DONUT CHART ═══════════════════════════════════════════════════── -->
+  <section class="card green">
+    <div class="section-label">Distribución</div>
+    <div class="section-title">Estado de los objetivos del Roadmap v3.x</div>
+    <div class="donut-wrap">
+      <svg class="donut-svg" viewBox="0 0 200 200">
+        <!-- Completado: 7/10 = 70% → 252° -->
+        <circle cx="100" cy="100" r="70" fill="none" stroke="#252B40" stroke-width="24"/>
+        <!-- Green: done (7) = 70% = 252deg → dasharray 70%*440 = 308 -->
+        <circle cx="100" cy="100" r="70" fill="none"
+                stroke="#4AE896" stroke-width="24"
+                stroke-dasharray="308 440"
+                stroke-dashoffset="110"
+                stroke-linecap="round"
+                transform="rotate(-90 100 100)"/>
+        <!-- Amber: partial (1) = 10% = 44 -->
+        <circle cx="100" cy="100" r="70" fill="none"
+                stroke="#FFB547" stroke-width="24"
+                stroke-dasharray="44 440"
+                stroke-dashoffset="-198"
+                stroke-linecap="round"
+                transform="rotate(-90 100 100)"/>
+        <!-- Red: pending (3) = 30% but only 2 unstarted after partial → already visible as gap -->
+        <!-- Center text -->
+        <text x="100" y="95" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="28" font-weight="800" fill="#4AE896">70%</text>
+        <text x="100" y="115" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="10" fill="#7880A0" letter-spacing="2">COMPLETADO</text>
+      </svg>
+      <div class="donut-legend">
+        <div class="donut-leg-item">
+          <div class="donut-leg-dot" style="background:#4AE896"></div>
+          <span class="donut-leg-label">Completados</span>
+          <span class="donut-leg-val">7 objetivos</span>
+        </div>
+        <div class="donut-leg-item">
+          <div class="donut-leg-dot" style="background:#FFB547"></div>
+          <span class="donut-leg-label">Parciales</span>
+          <span class="donut-leg-val">1 objetivo</span>
+        </div>
+        <div class="donut-leg-item">
+          <div class="donut-leg-dot" style="background:#FF6B84"></div>
+          <span class="donut-leg-label">Pendientes</span>
+          <span class="donut-leg-val">3 objetivos</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ OBJETIVOS — COMPLETADOS ════════════════════════════════════════ -->
+  <section class="card">
+    <div class="section-label">Objetivos completados</div>
+    <div class="section-title">✅ 7 objetivos alcanzados</div>
+    <div class="obj-grid">
+
+      <div class="obj-card done">
+        <div class="obj-header">
+          <span class="obj-id done">DLL</span>
+          <span class="obj-status done">✓ Completado</span>
+        </div>
+        <div class="obj-name">Arquitectura modular C# → DLL</div>
+        <div class="obj-desc">Tipos C# compilados a DLLs externas con guards de tipo y carga dinámica via Add-Type -Path.</div>
+        <div class="obj-evidence">10 DLLs en <code>libs/</code> · 16 <code>.cs</code> en <code>libs/csproj/</code> · <code>compile-dlls.ps1</code> auto-descubrimiento</div>
+      </div>
+
+      <div class="obj-card done">
+        <div class="obj-header">
+          <span class="obj-id done">CTK</span>
+          <span class="obj-status done">✓ Completado</span>
+        </div>
+        <div class="obj-name">CancellationToken unificado</div>
+        <div class="obj-desc">ScanTokenManager con RequestNew()/Cancel()/Dispose(), bridge CTK→ScanCtl211.Stop.</div>
+        <div class="obj-evidence">20 refs en PS1 · Integrado en <code>SysOpt.Core.dll</code></div>
+      </div>
+
+      <div class="obj-card done">
+        <div class="obj-header">
+          <span class="obj-id done">DAL</span>
+          <span class="obj-status done">✓ Completado</span>
+        </div>
+        <div class="obj-name">Abstracción capa de datos</div>
+        <div class="obj-desc">SystemDataCollector con 13 WMI queries migradas. 8 métodos Get*Snapshot() con modelos puros.</div>
+        <div class="obj-evidence">Modelos: <code>Cpu/Ram/Disk/Network/Gpu/PortSnapshot</code> · Integrado en <code>SysOpt.Core.dll</code></div>
+      </div>
+
+      <div class="obj-card super">
+        <div class="obj-header">
+          <span class="obj-id super">C1</span>
+          <span class="obj-status super">✦ Superado</span>
+        </div>
+        <div class="obj-name">Sistema de temas completo</div>
+        <div class="obj-desc">Motor dual (293 DynamicResource + 298 Get-TC). Roadmap preveía 33 temas — implementados 68.</div>
+        <div class="obj-evidence">68 archivos <code>.theme</code> · <code>SysOpt.ThemeEngine.dll</code> · ComboBox theming</div>
+      </div>
+
+      <div class="obj-card done">
+        <div class="obj-header">
+          <span class="obj-id done">C2</span>
+          <span class="obj-status done">✓ Completado</span>
+        </div>
+        <div class="obj-name">Notificaciones Toast</div>
+        <div class="obj-desc">SysOpt.Toast.dll — sistema propio WPF temático. 4 tipos (Success/Info/Warning/Error), sincronización con tema activo.</div>
+        <div class="obj-evidence"><code>SysOpt.Toast.cs</code> (294 líneas) · <code>Show-Toast</code> + <code>Sync-ToastTheme</code> · Toggle en OptionsWindow</div>
+      </div>
+
+      <div class="obj-card done">
+        <div class="obj-header">
+          <span class="obj-id done">I18N</span>
+          <span class="obj-status done">✓ Completado</span>
+        </div>
+        <div class="obj-name">Multiidioma completo</div>
+        <div class="obj-desc">3 idiomas (ES/EN/PT-BR), 54 keys por idioma. LangEngine en Core.dll con T() + Loc.T(). Cambio en caliente.</div>
+        <div class="obj-evidence"><code>en-us.lang</code> · <code>es-es.lang</code> · <code>pt-br.lang</code> · 32 strings Diagnostics.cs localizados</div>
+      </div>
+
+      <div class="obj-card done">
+        <div class="obj-header">
+          <span class="obj-id done">EGG+EXT</span>
+          <span class="obj-status done">✓ Completado</span>
+        </div>
+        <div class="obj-name">Easter Egg + Exit Cleanup</div>
+        <div class="obj-desc">Atari Breakout (DrawingVisual 60fps, proceso aislado). Cierre limpio: disposal 6 contextos async + Environment.Exit(0).</div>
+        <div class="obj-evidence"><code>SysOpt.Breakout.dll</code> · <code>BreakoutWindow.xaml</code> · 4 clicks en logo About · DPI-aware</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ OBJETIVOS — PARCIALES ══════════════════════════════════════════ -->
+  <section class="card amber">
+    <div class="section-label">Objetivos parciales</div>
+    <div class="section-title">⚠️ 1 objetivo en progreso</div>
+    <div class="obj-grid">
+
+      <div class="obj-card partial">
+        <div class="obj-header">
+          <span class="obj-id partial">RPT</span>
+          <span class="obj-status partial">⚠ Parcial</span>
+        </div>
+        <div class="obj-name">Informe de sesión PDF/HTML</div>
+        <div class="obj-desc">Existe template diskreport.html para informes de disco. Falta informe completo de sesión con puntuación antes/después y exportación PDF.</div>
+        <div class="obj-evidence"><code>diskreport.html</code> operativo · Pendiente: informe global con score</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ PENDIENTES ═════════════════════════════════════════════════════ -->
+  <section class="card amber">
+    <div class="section-label">Pendientes</div>
+    <div class="section-title">❌ 3 objetivos + 2 fases pendientes</div>
+    <div class="pending-grid">
+
+      <div class="pending-card">
+        <div class="pending-id">C4</div>
+        <div class="pending-name">Programador de tareas</div>
+        <div class="pending-desc">Interfaz para Register-ScheduledTask con programación de optimizaciones automáticas.</div>
+        <span class="pending-prio prio-high">Prioridad alta</span>
+      </div>
+
+      <div class="pending-card">
+        <div class="pending-id">UPD</div>
+        <div class="pending-name">Auto-actualización</div>
+        <div class="pending-desc">Check de versión contra GitHub Releases API al arrancar, descarga e instalación automática.</div>
+        <span class="pending-prio prio-high">Prioridad alta</span>
+      </div>
+
+      <div class="pending-card">
+        <div class="pending-id">PLG</div>
+        <div class="pending-name">Plugin system</div>
+        <div class="pending-desc">Arquitectura de carga dinámica desde .\plugins\ con interfaz IPlugin y descubrimiento automático.</div>
+        <span class="pending-prio prio-medium">Prioridad media</span>
+      </div>
+
+      <div class="pending-card">
+        <div class="pending-id">2E</div>
+        <div class="pending-name">Refactor PS1 → Launcher</div>
+        <div class="pending-desc">Reducir PS1 de ~6,900 a ~2,500 líneas delegando lógica de UI binding, configuración y ventanas a DLLs.</div>
+        <span class="pending-prio prio-low">Largo plazo</span>
+      </div>
+
+      <div class="pending-card">
+        <div class="pending-id">ANI</div>
+        <div class="pending-name">Temas dinámicos / animados</div>
+        <div class="pending-desc">Motor de animación con sección [animation] en .theme, IThemeAnimation, Canvas overlay. Validado con MatrixDemo.</div>
+        <span class="pending-prio prio-low">Largo plazo</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ DLLs MODULARES ════════════════════════════════════════════════ -->
+  <section class="card purple">
+    <div class="section-label">Inventario</div>
+    <div class="section-title">🔧 10 DLLs modulares (20 con x86)</div>
+    <table class="dll-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>DLL</th>
+          <th>Función</th>
+          <th>Fuente C#</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="dll-num">1</td>
+          <td class="dll-name">SysOpt.Core.dll</td>
+          <td class="dll-func">LangEngine, CoreUtils, ScanTokenManager, SystemDataCollector, AgentBus</td>
+          <td class="dll-src">SysOpt.Core.cs</td>
+        </tr>
+        <tr>
+          <td class="dll-num">2</td>
+          <td class="dll-name">SysOpt.ThemeEngine.dll</td>
+          <td class="dll-func">Parser de archivos .theme, motor dual</td>
+          <td class="dll-src">SysOpt.ThemeEngine.cs</td>
+        </tr>
+        <tr>
+          <td class="dll-num">3</td>
+          <td class="dll-name">SysOpt.DiskEngine.dll</td>
+          <td class="dll-func">DiskItem, ScanCtl, ParallelScanner</td>
+          <td class="dll-src">DiskEngine.cs</td>
+        </tr>
+        <tr>
+          <td class="dll-num">4</td>
+          <td class="dll-name">SysOpt.MemoryHelper.dll</td>
+          <td class="dll-func">EmptyWorkingSet nativo (Win32 API)</td>
+          <td class="dll-src">MemoryHelper.cs</td>
+        </tr>
+        <tr>
+          <td class="dll-num">5</td>
+          <td class="dll-name">SysOpt.WseTrim.dll</td>
+          <td class="dll-func">Working Set trimming batch</td>
+          <td class="dll-src">WseTrim.cs</td>
+        </tr>
+        <tr>
+          <td class="dll-num">6</td>
+          <td class="dll-name">SysOpt.Optimizer.dll</td>
+          <td class="dll-func">15 tareas: TempFiles, RecycleBin, WUCache, CHKDSK, SFC, DISM, BrowserCache, DNS, EventLogs…</td>
+          <td class="dll-src">SysOpt.Optimizer.cs</td>
+        </tr>
+        <tr>
+          <td class="dll-num">7</td>
+          <td class="dll-name">SysOpt.StartupManager.dll</td>
+          <td class="dll-func">Gestión de programas de inicio Windows</td>
+          <td class="dll-src">SysOpt.StartupManager.cs</td>
+        </tr>
+        <tr>
+          <td class="dll-num">8</td>
+          <td class="dll-name">SysOpt.Diagnostics.dll</td>
+          <td class="dll-func">9 métricas, scoring 0-100, 32 strings localizados con Loc.T()</td>
+          <td class="dll-src">SysOpt.Diagnostics.cs</td>
+        </tr>
+        <tr>
+          <td class="dll-num">9</td>
+          <td class="dll-name">SysOpt.Toast.dll</td>
+          <td class="dll-func">Notificaciones Toast temáticas WPF — 4 tipos, sincronización tema</td>
+          <td class="dll-src">SysOpt.Toast.cs</td>
+        </tr>
+        <tr>
+          <td class="dll-num">10</td>
+          <td class="dll-name">SysOpt.Breakout.dll</td>
+          <td class="dll-func">Easter Egg Atari Breakout — DrawingVisual 60fps, proceso aislado</td>
+          <td class="dll-src">SysOpt.Breakout.cs</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ═══ VENTANAS XAML ══════════════════════════════════════════════════ -->
+  <section class="card">
+    <div class="section-label">Interfaz</div>
+    <div class="section-title">🖼️ 11 ventanas XAML externalizadas</div>
+    <div class="tag-cloud">
+      <span class="tag t-green">MainWindow</span>
+      <span class="tag t-green">OptionsWindow <small>(3 secciones)</small></span>
+      <span class="tag t-green">SplashWindow</span>
+      <span class="tag t-green">TasksWindow</span>
+      <span class="tag">DiagnosticWindow</span>
+      <span class="tag">FolderScannerWindow</span>
+      <span class="tag">StartupManagerWindow</span>
+      <span class="tag">DedupWindow</span>
+      <span class="tag t-purple">ChangelogWindow</span>
+      <span class="tag t-purple">AboutWindow <small>(deprecated)</small></span>
+      <span class="tag t-cyan">BreakoutWindow <small>(Easter Egg)</small></span>
+    </div>
+  </section>
+
+  <!-- ═══ TEMAS VISUALES ════════════════════════════════════════════════ -->
+  <section class="card">
+    <div class="section-label">Personalización</div>
+    <div class="section-title">🎨 68 temas preinstalados</div>
+    <div class="tag-cloud">
+      <span class="tag t-cyan">default</span>
+      <span class="tag t-cyan">matrix</span>
+      <span class="tag t-cyan">pipboy</span>
+      <span class="tag t-cyan">dracula</span>
+      <span class="tag t-cyan">nord</span>
+      <span class="tag t-cyan">solarized</span>
+      <span class="tag t-cyan">catppuccin</span>
+      <span class="tag t-amber">elden-ring</span>
+      <span class="tag t-amber">god-of-war</span>
+      <span class="tag t-amber">zelda</span>
+      <span class="tag t-amber">cyberpunk</span>
+      <span class="tag t-amber">dark-souls</span>
+      <span class="tag t-amber">doom</span>
+      <span class="tag t-amber">halo</span>
+      <span class="tag t-amber">resident-evil</span>
+      <span class="tag t-amber">sekiro</span>
+      <span class="tag t-amber">bloodborne</span>
+      <span class="tag t-amber">hollow-knight</span>
+      <span class="tag t-purple">aws</span>
+      <span class="tag t-purple">azure</span>
+      <span class="tag t-purple">github-dark</span>
+      <span class="tag t-purple">ubuntu</span>
+      <span class="tag t-purple">slack</span>
+      <span class="tag t-purple">figma</span>
+      <span class="tag t-purple">bloomberg</span>
+      <span class="tag t-purple">wallstreet</span>
+      <span class="tag">+40 más</span>
+    </div>
+  </section>
+
+  <!-- ═══ TIMELINE DE VERSIONES ══════════════════════════════════════════ -->
+  <section class="card">
+    <div class="section-label">Historial</div>
+    <div class="section-title">📅 Timeline completo de versiones</div>
+    <div class="timeline">
+      <div class="tl-items">
+
+        <div class="tl-item done">
+          <div class="tl-ver">v2.0.x</div>
+          <div class="tl-title">Hotfix de estabilidad crítica</div>
+          <div class="tl-desc">7 fixes: guards anti-TYPE_ALREADY_EXISTS, fix parentKey ::ROOT::, inyección assemblies a runspace, Import-Module rendimiento, Update-SystemInfo async, fix closure $async, cleanup en Add_Closed.</div>
+        </div>
+
+        <div class="tl-item done">
+          <div class="tl-ver">v2.1.x</div>
+          <div class="tl-title">Estabilidad del Explorador</div>
+          <div class="tl-desc">6 fixes: parser .AddParameter, memoria adaptativa, childMap cacheado, Sort-Object, DFS frame stack, fix interval.</div>
+        </div>
+
+        <div class="tl-item done">
+          <div class="tl-ver">v2.3</div>
+          <div class="tl-title">Funcionalidad completa del Explorador</div>
+          <div class="tl-desc">Features B1-B4, A3, C3 y RAM-01 a RAM-06. Bugs BF1-BF6 corregidos.</div>
+        </div>
+
+        <div class="tl-item done">
+          <div class="tl-ver">v2.4.0</div>
+          <div class="tl-title">FIFO Streaming</div>
+          <div class="tl-desc">FIFO-01/02/03, fix Set-Content, toggle refresh, pre-cálculo top 10. Integrado en v2.5.0.</div>
+        </div>
+
+        <div class="tl-item done">
+          <div class="tl-ver">v2.5.0</div>
+          <div class="tl-title">Versión pública estable</div>
+          <div class="tl-desc">Logging estructurado, error boundary global, CimSession timeout, deduplicación SHA256, TaskPool async.</div>
+        </div>
+
+        <div class="tl-item done">
+          <div class="tl-ver">v3.0.0</div>
+          <div class="tl-title">Arquitectura modular DLL</div>
+          <div class="tl-desc">SysOpt.MemoryHelper.dll + SysOpt.DiskEngine.dll. Ruta relativa a PSScriptRoot.</div>
+        </div>
+
+        <div class="tl-item done">
+          <div class="tl-ver">v3.1.0</div>
+          <div class="tl-title">Temas + Multiidioma + Opciones</div>
+          <div class="tl-desc">Motor de temas dual, 3 idiomas, SysOpt.Core.dll + ThemeEngine.dll, ventana de opciones, persistencia settings.json.</div>
+        </div>
+
+        <div class="tl-item current">
+          <div class="tl-ver">v3.2.0 — ACTUAL</div>
+          <div class="tl-title">Externalización DLLs + 68 Temas + Toast + Easter Egg</div>
+          <div class="tl-desc">10 DLLs modulares, 68 temas, Toast temático, Breakout 60fps en proceso aislado, About migrado a OptionsWindow, exit cleanup completo, 54 keys/idioma, auditoría 10 DLLs.</div>
+        </div>
+
+        <div class="tl-item next">
+          <div class="tl-ver">v3.3.0 — Próxima</div>
+          <div class="tl-title">Programador de tareas + Auto-actualización</div>
+          <div class="tl-desc">C4: Register-ScheduledTask con interfaz visual. UPD: Check de versión contra GitHub Releases API.</div>
+        </div>
+
+        <div class="tl-item future">
+          <div class="tl-ver">v4.0.0 — Futuro</div>
+          <div class="tl-title">Plugin System + PS1 Launcher + Temas animados</div>
+          <div class="tl-desc">PLG: Arquitectura extensible. 2E: PS1 reducido a ~2,500 líneas. ANI: Motor de animación con Canvas overlay.</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ FOOTER ═════════════════════════════════════════════════════════ -->
+  <footer>
+    <p>SysOpt Windows Optimizer GUI v3.2.0-STABLE — Análisis de Roadmap · 5 de marzo de 2026</p>
+    <div class="chips">
+      <span class="chip"><span class="chip-dot" style="background:var(--green)"></span>7/10 objetivos</span>
+      <span class="chip"><span class="chip-dot" style="background:var(--cyan)"></span>10 DLLs modulares</span>
+      <span class="chip"><span class="chip-dot" style="background:var(--purple)"></span>68 temas</span>
+      <span class="chip"><span class="chip-dot" style="background:var(--blue)"></span>11 ventanas XAML</span>
+      <span class="chip"><span class="chip-dot" style="background:var(--amber)"></span>3 idiomas · 54 keys</span>
+      <span class="chip"><span class="chip-dot" style="background:var(--green)"></span>~6,900 líneas PS1</span>
+      <span class="chip"><span class="chip-dot" style="background:var(--muted)"></span>126 archivos</span>
+    </div>
+  </footer>
+
+</div><!-- /container -->
+</body>
+</html>

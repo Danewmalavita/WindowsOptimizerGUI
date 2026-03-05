@@ -715,10 +715,10 @@
     <div>
       <div class="dev-banner-title">Estado actual — v3.2.0 (Dev) en desarrollo / Base estable v2.5.0</div>
       <div class="dev-banner-desc">
-        <code>SysOpt v3.2.0 (Dev)</code> incluye 33 temas visuales, soporte multiidioma (ES/EN/PT-BR), 9 DLLs modulares,
-        ventana de opciones y nuevas DLLs modulares (<code>SysOpt.Core.dll</code>, <code>SysOpt.ThemeEngine.dll</code>).
+        <code>SysOpt v3.2.0-STABLE</code> incluye 68 temas visuales, soporte multiidioma (ES/EN/PT-BR), 10 DLLs modulares,
+        ventana de opciones, notificaciones Toast temáticas y Easter Egg Breakout.
         La estrategia dual de tematización cubre 293 bindings DynamicResource + 298 llamadas Get-TC en UI dinámica.
-        Próximos objetivos: CancellationToken unificado, abstracción de capa de datos y notificaciones Toast.
+        Todos los objetivos arquitecturales completados: CTK, DAL, Toast, Exit cleanup y Breakout.
       </div>
       <div class="dev-banner-chips">
         <span class="dchip done">✓ v2.5.0 estable base</span>
@@ -734,8 +734,13 @@
         <span class="dchip done">✓ SysOpt.Core.dll + ThemeEngine.dll</span>
         <span class="dchip done">✓ Persistencia tema/idioma [SETTINGS]</span>
         <span class="dchip done">✓ ComboBox theming completo</span>
-        <span class="dchip wip">CTK CancellationToken → v3.x</span>
-        <span class="dchip wip">C2 Toast notifications → v3.x</span>
+        <span class="dchip done">✓ CTK + DAL en Core.dll</span>
+        <span class="dchip done">✓ SysOpt.Toast.dll [C2]</span>
+        <span class="dchip done">✓ Easter Egg Breakout [EGG]</span>
+        <span class="dchip done">✓ SysOpt.Breakout.dll</span>
+        <span class="dchip done">✓ About → OptionsWindow</span>
+        <span class="dchip done">✓ Exit cleanup [EXT]</span>
+        <span class="dchip done">✓ 68 Temas visuales [THEME]</span>
       </div>
     </div>
   </div>
@@ -1008,7 +1013,7 @@
     </div>
 
     <div class="bug-card" style="border-top-color:var(--cyan)">
-      <div class="bug-id" style="color:var(--cyan);background:rgba(46,223,191,.1)">[THEME] 33 TEMAS</div>
+      <div class="bug-id" style="color:var(--cyan);background:rgba(46,223,191,.1)">[THEME] 68 TEMAS</div>
       <div class="bug-name">68 temas preinstalados — expansión de 11 a 68</div>
       <div class="bug-desc">Nuevos temas: Apple, AWS, Azure, Bloomberg, Cyberpunk, Diablo, Dracula, Figma, GitHub Dark, Kiss, Monokai, Notion, Office, PS5, Simpsons, Slack, Solarized Dark, Star Wars, Symphony of the Night, Ubuntu, Wall Street, Xbox, y más.</div>
       <div class="bug-fix">IMPL: 68 archivos <code>.theme</code> en <code>.\assets\themes\</code>. Cada tema define ~27 claves de color.</div>
@@ -1022,10 +1027,10 @@
     </div>
 
     <div class="bug-card" style="border-top-color:var(--blue)">
-      <div class="bug-id" style="color:var(--blue);background:rgba(91,163,255,.1)">[DBG] AUDITORÍA 9 DLLs</div>
-      <div class="bug-name">Debug muestra carga y estado de las 9 DLLs</div>
-      <div class="bug-desc">Splash de arranque con progreso 1/8 a 9/9. Auditoría en log: estado [OK]/[FALTA] de cada DLL. Auto-detección en disco de DLLs no cargadas con aviso <code>[EN DISCO NO CARGADA]</code>.</div>
-      <div class="bug-fix">IMPL: <code>$expectedDlls</code> con 9 guard types. Escaneo de <code>libs/*.dll</code> para detectar nuevas DLLs automáticamente.</div>
+      <div class="bug-id" style="color:var(--blue);background:rgba(91,163,255,.1)">[DBG] AUDITORÍA 10 DLLs</div>
+      <div class="bug-name">Debug muestra carga y estado de las 10 DLLs</div>
+      <div class="bug-desc">Splash de arranque con progreso 1/8 a 10/10. Auditoría en log: estado [OK]/[FALTA] de cada DLL. Auto-detección en disco de DLLs no cargadas con aviso <code>[EN DISCO NO CARGADA]</code>.</div>
+      <div class="bug-fix">IMPL: <code>$expectedDlls</code> con 10 guard types (incluye Breakout). Escaneo de <code>libs/*.dll</code> para detectar nuevas DLLs automáticamente.</div>
     </div>
 
     <div class="bug-card" style="border-top-color:var(--amber)">
@@ -1195,16 +1200,21 @@
         </ul>
       </div>
 
-      <div class="tl-item current">
-        <div class="tl-ver">v3.2.0 (Dev) · EN DESARROLLO ◉</div>
-        <div class="tl-title">Externalización DLLs + 33 temas + toggle Win11</div>
+      <div class="tl-item done">
+        <div class="tl-ver">v3.2.0-STABLE · COMPLETADO ✓</div>
+        <div class="tl-title">Externalización DLLs + 68 temas + Toast + Easter Egg</div>
         <ul class="tl-list">
           <li class="done-li">[DLL] SysOpt.Optimizer.dll — 15 tareas de optimización</li>
           <li class="done-li">[DLL] SysOpt.StartupManager.dll — gestión de inicio</li>
           <li class="done-li">[DLL] SysOpt.Diagnostics.dll — diagnóstico del sistema</li>
-          <li class="done-li">[THEME] 33 temas preinstalados (+22 nuevos)</li>
+          <li class="done-li">[THEME] 68 temas preinstalados (+57 nuevos)</li>
           <li class="done-li">[UI] Toggle Win11 en opciones</li>
-          <li class="done-li">[DBG] Auditoría de 9 DLLs en debug</li>
+          <li class="done-li">[DLL] SysOpt.Toast.dll — notificaciones toast temáticas</li>
+          <li class="done-li">[DLL] SysOpt.Breakout.dll — Easter Egg Breakout 60fps</li>
+          <li class="done-li">[UI] Sección About migrada a OptionsWindow (3 secciones)</li>
+          <li class="done-li">[FIX] Exit cleanup: disposal 6 contextos + Environment.Exit(0)</li>
+          <li class="done-li">[I18N] 54 keys/idioma, Diagnostics.cs 100% localizado</li>
+          <li class="done-li">[DBG] Auditoría de 10 DLLs en debug</li>
           <li class="done-li">[OPT] PS1 reducido 683 líneas (-9.9%)</li>
         </ul>
       </div>
@@ -1289,7 +1299,7 @@
         <div class="item-card done">
           <div class="item-id-box">C1</div>
           <div class="item-content">
-            <div class="item-name">Sistema de temas completo — 11 temas visuales</div>
+            <div class="item-name">Sistema de temas completo — 68 temas visuales</div>
             <div class="item-desc">Motor de temas con estrategia dual: <code>{DynamicResource}</code> para XAML (293 bindings) + <code>Get-TC</code> para UI dinámica (298 llamadas). 11 temas en <code>.\assets\themes\</code>, <code>SysOpt.ThemeEngine.dll</code> como parser C#. Cobertura completa: barras, badges, iconos, ComboBox, gradientes y 8 ventanas dinámicas.</div>
             <div class="item-tags"><span class="tag done-tag">✓ Completado en v3.1.0</span><span class="tag">Theming</span><span class="tag">DynamicResource</span><span class="tag">DLL</span></div>
           </div>
@@ -1402,12 +1412,12 @@
             <div class="item-tags"><span class="tag done-tag">✓ Completado en v3.2.0</span><span class="tag">Cleanup</span><span class="tag">Exit</span><span class="tag">Runspace</span></div>
           </div>
         </div>
-        <div class="item-card">
+        <div class="item-card done">
           <div class="item-id-box">EGG</div>
           <div class="item-content">
             <div class="item-name">Easter egg — Atari Breakout</div>
-            <div class="item-desc">Tras pulsar 4 veces el logo en About (OptionsWindow), cargar un Atari Breakout embebido en WPF Canvas con físicas de bola, paddle y bloques destructibles.</div>
-            <div class="item-tags"><span class="tag">Easter Egg</span><span class="tag">Canvas</span><span class="tag">Fun</span></div>
+            <div class="item-desc">4 clicks en logo About (OptionsWindow) lanza Atari Breakout en proceso aislado. DrawingVisual renderer, fixed 60fps timestep, 60 bricks rainbow, colores del tema activo.</div>
+            <div class="item-tags"><span class="tag done-tag">✓ Completado en v3.2.0</span><span class="tag">Easter Egg</span><span class="tag">DrawingVisual</span><span class="tag">Isolated Process</span></div>
           </div>
         </div>
       </div>
@@ -1417,12 +1427,12 @@
 
     <!-- ── Footer ── -->
   <footer>
-    <p style="margin-bottom:12px;">SysOpt Windows Optimizer GUI — v3.2.0-STABLE · Arquitectura modular · 9 DLLs · 68 temas · 3 idiomas</p>
+    <p style="margin-bottom:12px;">SysOpt Windows Optimizer GUI — v3.2.0-STABLE · Arquitectura modular · 10 DLLs · 68 temas · 3 idiomas</p>
     <div>
       <span class="chip"><span class="chip-dot" style="background:var(--purple)"></span>v3.2.0 Dev</span>
-      <span class="chip"><span class="chip-dot" style="background:var(--green)"></span>68 Temas + 9 DLLs</span>
+      <span class="chip"><span class="chip-dot" style="background:var(--green)"></span>68 Temas + 10 DLLs</span>
       <span class="chip"><span class="chip-dot" style="background:var(--cyan)"></span>Multiidioma ES/EN/PT</span>
-      <span class="chip"><span class="chip-dot" style="background:var(--blue)"></span>9 DLLs modulares</span>
+      <span class="chip"><span class="chip-dot" style="background:var(--blue)"></span>10 DLLs modulares</span>
       <span class="chip"><span class="chip-dot" style="background:var(--amber)"></span>Ventana de Opciones</span>
       <span class="chip"><span class="chip-dot" style="background:var(--red)"></span>ComboBox theming</span>
       <span class="chip"><span class="chip-dot" style="background:var(--muted)"></span>PowerShell + WPF</span>
